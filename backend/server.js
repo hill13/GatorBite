@@ -6,7 +6,9 @@ import { optionalUser, requireUser } from "./auth.js";
 import { getView, addUserRestaurant, addUserBuilding, saveUserItems, getSchedule, saveSchedule } from "./db.js";
 
 const app = express();
-app.use(cors());
+// FRONTEND_ORIGIN (comma-separated, no trailing slash) limits which sites may call the API; unset allows any.
+const origins = (process.env.FRONTEND_ORIGIN || "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
+app.use(cors(origins.length ? { origin: origins } : undefined));
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_req, res) => res.send("GatorBite API ok"));
