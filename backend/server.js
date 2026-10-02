@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { extractMenu } from "./gemini.js";
 import { buildings } from "./data.js";
+import { requireSfsu } from "./auth.js";
 import { getRestaurants, listRestaurants, addRestaurant, saveItems } from "./db.js";
 
 const app = express();
@@ -14,7 +15,7 @@ app.get("/", (_req, res) => res.send("GatorBite API ok"));
 app.get("/api/meta", async (_req, res) => res.json({ buildings, restaurants: await listRestaurants() }));
 
 // Add a restaurant: name + walk minutes from each building
-app.post("/api/restaurants", async (req, res) => {
+app.post("/api/restaurants", requireSfsu, async (req, res) => {
   const name = String(req.body.name || "").trim();
   const walkTimes = {};
   for (const b of buildings) {
@@ -51,14 +52,14 @@ app.post("/api/recommendations", async (req, res) => {
 });
 
 // Photo -> Gemini -> structured items (does not save; the user confirms first)
-app.post("/api/menus/extract", async (req, res) => {
+app.post("/api/menus/extract", requireSfsu, async (req, res) => {
   const { imageBase64, mimeType } = req.body;
   if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
   res.json(await extractMenu(imageBase64, mimeType));
 });
 
 // Confirmed items -> Firestore (or memory if no key file)
-app.post("/api/menus/save", async (req, res) => {
+app.post("/api/menus/save", requireSfsu, async (req, res) => {
   const { restaurantId, items } = req.body;
   try {
     if (!(await saveItems(restaurantId, items))) return res.status(400).json({ error: "unknown restaurant" });

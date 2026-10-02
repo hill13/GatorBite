@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-brand-50: #f3f0fb;
+  --color-brand-100: #e4ddf6;
+  --color-brand-600: #3b2a8c;
+  --color-brand-700: #2f2078;
+  --color-brand-900: #231161;
+  --color-gold-100: #fbf1d3;
+  --color-gold-400: #e6b800;
+  --color-gold-500: #d4a600;
+}
+
+body {
+  background: #f7f6fb;
+  color: #1c1b29;
+}

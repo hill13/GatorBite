@@ -1,9 +1,12 @@
+import { getToken } from "./auth.js";
+
 const API = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 const post = async (path, body) => {
+  const token = await getToken();
   const res = await fetch(API + path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);

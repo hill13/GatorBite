@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { getMeta, recommend, extract, save, addRestaurant } from "./api.js";
+import { watchUser, signIn, logOut, authDisabled, authConfigured } from "./auth.js";
 
-const input = "w-full rounded-lg border border-gray-300 px-3 py-2";
-const btn = "rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50";
+const field =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
+const btnPrimary =
+  "inline-flex items-center justify-center rounded-lg bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50";
+const btnGold =
+  "inline-flex items-center justify-center rounded-lg bg-gold-400 px-5 py-2.5 text-sm font-semibold text-brand-900 shadow-sm transition hover:bg-gold-500 disabled:cursor-not-allowed disabled:opacity-50";
 
 const toBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -12,21 +17,41 @@ const toBase64 = (file) =>
     r.readAsDataURL(file);
   });
 
+const Card = ({ title, subtitle, children }) => (
+  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    {title && <h2 className="text-lg font-semibold text-brand-900">{title}</h2>}
+    {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+    <div className={title ? "mt-4" : ""}>{children}</div>
+  </section>
+);
+
+const Field = ({ label, children }) => (
+  <label className="block">
+    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+    {children}
+  </label>
+);
+
 export default function App() {
   const [meta, setMeta] = useState({ buildings: [], restaurants: [] });
   const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
   const [excluded, setExcluded] = useState([]);
-  const [newR, setNewR] = useState({ name: "", walk: {} });
   const [results, setResults] = useState(null);
   const [newNames, setNewNames] = useState([]);
   const [error, setError] = useState("");
 
+  const [user, setUser] = useState(null);
+  const signedIn = authDisabled || Boolean(user);
+
+  const [newR, setNewR] = useState({ name: "", walk: {} });
   const [restaurantId, setRestaurantId] = useState("");
   const [file, setFile] = useState(null);
   const [items, setItems] = useState(null);
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+
+  useEffect(() => watchUser(setUser), []);
 
   useEffect(() => {
     getMeta()
@@ -35,8 +60,37 @@ export default function App() {
         setForm((f) => ({ ...f, building: m.buildings[0], destination: m.buildings[0] }));
         setRestaurantId(m.restaurants[0]?.id);
       })
-      .catch(() => setError("Can't reach the backend. Is it running on :8080?"));
+      .catch(() => setError("Can't reach the backend. Is it running?"));
   }, []);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const toggleRestaurant = (id) => setExcluded(excluded.includes(id) ? excluded.filter((x) => x !== id) : [...excluded, id]);
+
+  const handleSignIn = async () => {
+    setError("");
+    try {
+      await signIn();
+    } catch (err) {
+      if (err.code !== "auth/popup-closed-by-user") setError(err.message);
+    }
+  };
+
+  const search = async (e) => {
+    e?.preventDefault();
+    setError("");
+    try {
+      setResults(
+        await recommend({
+          ...form,
+          restaurantIds: meta.restaurants.map((r) => r.id).filter((id) => !excluded.includes(id)),
+          budget: Number(form.budget),
+          minutesUntilClass: Number(form.minutesUntilClass),
+        })
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const submitRestaurant = async (e) => {
     e.preventDefault();
@@ -46,25 +100,7 @@ export default function App() {
       setMeta(await getMeta());
       setRestaurantId(created.id);
       setNewR({ name: "", walk: {} });
-      setMsg(`Added ${created.name}. Pick it under "Scan a menu" to add its items.`);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-
-  const search = async (e) => {
-    e?.preventDefault();
-    setError("");
-    try {
-      const out = await recommend({
-        ...form,
-        restaurantIds: meta.restaurants.map((r) => r.id).filter((id) => !excluded.includes(id)),
-        budget: Number(form.budget),
-        minutesUntilClass: Number(form.minutesUntilClass),
-      });
-      setResults(out);
+      setMsg(`Added ${created.name}. Select it under "Scan a menu" to add its items.`);
     } catch (err) {
       setError(err.message);
     }
@@ -85,13 +121,15 @@ export default function App() {
   };
 
   const editItem = (i, k, v) => setItems(items.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
+  const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
 
   const confirm = async () => {
     setBusy(true);
+    setError("");
     try {
       await save({ restaurantId, items: items.map((it) => ({ ...it, price: Number(it.price) })) });
       setNewNames(items.map((it) => it.name));
-      setMsg(`Saved ${items.length} item(s). Search again to see them.`);
+      setMsg(`Saved ${items.length} item${items.length !== 1 ? "s" : ""}. Search again to see them.`);
       setItems(null);
       setFile(null);
     } catch (err) {
@@ -101,139 +139,224 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
-        <header>
-          <h1 className="text-3xl font-bold text-emerald-700">🐊 GatorBite</h1>
-          <p className="text-gray-600">What can I actually eat before my next class?</p>
-        </header>
-
-        {error && <div className="rounded-lg bg-red-100 p-3 text-red-800">{error}</div>}
-
-        <form onSubmit={search} className="space-y-3 rounded-xl bg-white p-4 shadow">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-sm font-medium">I'm at</span>
-              <select className={input} value={form.building} onChange={set("building")}>
-                {meta.buildings.map((b) => <option key={b}>{b}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium">My next class is at</span>
-              <select className={input} value={form.destination} onChange={set("destination")}>
-                {meta.buildings.map((b) => <option key={b}>{b}</option>)}
-              </select>
-            </label>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="text-sm font-medium">Diet</span>
-              <select className={input} value={form.diet} onChange={set("diet")}>
-                <option value="vegetarian">Vegetarian</option>
-                <option value="vegan">Vegan</option>
-                <option value="any">Any</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium">Budget ($)</span>
-              <input className={input} type="number" min="1" value={form.budget} onChange={set("budget")} />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium">Minutes left</span>
-              <input className={input} type="number" min="1" value={form.minutesUntilClass} onChange={set("minutesUntilClass")} />
-            </label>
-          </div>
-          <div>
-            <span className="text-sm font-medium">Include restaurants</span>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-              {meta.restaurants.map((r) => (
-                <label key={r.id} className="text-sm">
-                  <input
-                    type="checkbox"
-                    checked={!excluded.includes(r.id)}
-                    onChange={() => setExcluded(excluded.includes(r.id) ? excluded.filter((x) => x !== r.id) : [...excluded, r.id])}
-                  />{" "}
-                  {r.name}
-                </label>
-              ))}
+    <div className="min-h-screen font-sans">
+      <header className="bg-brand-900 text-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-400 text-lg font-extrabold text-brand-900">G</div>
+            <div>
+              <div className="text-lg font-bold leading-tight tracking-tight">GatorBite</div>
+              <div className="text-xs text-brand-100">Eat well. Make it to class.</div>
             </div>
           </div>
-          <button className={btn} disabled={excluded.length === meta.restaurants.length}>Find food</button>
-        </form>
+          {!authDisabled &&
+            (user ? (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="hidden text-brand-100 sm:inline">{user.email}</span>
+                <button onClick={logOut} className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">Sign out</button>
+              </div>
+            ) : (
+              <button onClick={handleSignIn} disabled={!authConfigured} className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-900 shadow-sm hover:bg-brand-50 disabled:opacity-60">
+                Sign in with SFSU Google
+              </button>
+            ))}
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-brand-900 sm:text-4xl">What can I eat before class?</h1>
+          <p className="mt-2 max-w-xl text-slate-600">
+            Tell us where you are, where you're headed and how long you have. We rank food by total time: walk there, prep, and the walk to class.
+          </p>
+        </div>
+
+        {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
+
+        <Card>
+          <form onSubmit={search} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="I'm at">
+                <select className={field} value={form.building} onChange={set("building")}>
+                  {meta.buildings.map((b) => <option key={b}>{b}</option>)}
+                </select>
+              </Field>
+              <Field label="My next class is at">
+                <select className={field} value={form.destination} onChange={set("destination")}>
+                  {meta.buildings.map((b) => <option key={b}>{b}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Diet">
+                <select className={field} value={form.diet} onChange={set("diet")}>
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="any">Anything</option>
+                </select>
+              </Field>
+              <Field label="Budget ($)">
+                <input className={field} type="number" min="1" value={form.budget} onChange={set("budget")} />
+              </Field>
+              <Field label="Minutes until class">
+                <input className={field} type="number" min="1" value={form.minutesUntilClass} onChange={set("minutesUntilClass")} />
+              </Field>
+            </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Restaurants</span>
+              <div className="flex flex-wrap gap-2">
+                {meta.restaurants.map((r) => {
+                  const on = !excluded.includes(r.id);
+                  return (
+                    <button
+                      type="button"
+                      key={r.id}
+                      onClick={() => toggleRestaurant(r.id)}
+                      aria-pressed={on}
+                      className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                        on ? "border-brand-900 bg-brand-900 text-white" : "border-slate-300 bg-white text-slate-500 line-through hover:border-slate-400"
+                      }`}
+                    >
+                      {r.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <button className={btnGold} disabled={excluded.length === meta.restaurants.length}>Find food</button>
+          </form>
+        </Card>
 
         {results && (
-          <section className="rounded-xl bg-white p-4 shadow">
-            <h2 className="mb-2 text-xl font-semibold">{results.length} option{results.length !== 1 && "s"}</h2>
-            {results.length === 0 && <p className="text-gray-500">Nothing fits. Try more time or budget.</p>}
-            <ul className="divide-y">
-              {results.map((r, i) => (
-                <li key={i} className="flex items-center justify-between py-2">
-                  <div>
-                    <div className="font-medium">
-                      {r.name}
-                      {newNames.includes(r.name) && r.source === "gemini-scan" && (
-                        <span className="ml-2 rounded bg-amber-200 px-2 py-0.5 text-xs font-bold">NEW</span>
-                      )}
+          <Card
+            title={`${results.length} option${results.length !== 1 ? "s" : ""} that fit`}
+            subtitle={results.length ? "Fastest first. Time is walk there + prep + walk to class." : undefined}
+          >
+            {results.length === 0 ? (
+              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {results.map((r, i) => (
+                  <li key={i} className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-slate-900">{r.name}</span>
+                        {newNames.includes(r.name) && r.source === "gemini-scan" && (
+                          <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-900 ring-1 ring-gold-400">New</span>
+                        )}
+                        {r.vegan && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Vegan</span>}
+                      </div>
+                      <div className="text-sm text-slate-500">{r.restaurant} · ${r.price.toFixed(2)}</div>
                     </div>
-                    <div className="text-sm text-gray-500">{r.restaurant} · ${r.price.toFixed(2)}</div>
-                  </div>
-                  <div className="text-right font-semibold text-emerald-700">{r.totalMinutes} min</div>
-                </li>
-              ))}
-            </ul>
-          </section>
+                    <div className="shrink-0 rounded-lg bg-brand-50 px-3 py-1.5 text-center">
+                      <div className="text-lg font-bold leading-none text-brand-900">{r.totalMinutes}</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-brand-600">min</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         )}
 
-        <form onSubmit={submitRestaurant} className="space-y-3 rounded-xl bg-white p-4 shadow">
-          <h2 className="text-xl font-semibold">Add a restaurant</h2>
-          <input className={input} placeholder="Restaurant name" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
-          <div className="grid grid-cols-3 gap-3">
-            {meta.buildings.map((b) => (
-              <label key={b} className="block text-sm">
-                Walk from {b} (min)
-                <input
-                  className={input}
-                  type="number"
-                  min="1"
-                  required
-                  value={newR.walk[b] || ""}
-                  onChange={(e) => setNewR({ ...newR, walk: { ...newR.walk, [b]: e.target.value } })}
-                />
-              </label>
-            ))}
-          </div>
-          <button className={btn}>Add restaurant</button>
-        </form>
+        <div className="pt-2">
+          <h2 className="text-xl font-bold text-brand-900">Help keep menus fresh</h2>
+          <p className="text-sm text-slate-500">Snap a menu photo and Gemini reads it into the app. Sign in with your SFSU account to contribute.</p>
+        </div>
 
-        <section className="space-y-3 rounded-xl bg-white p-4 shadow">
-          <h2 className="text-xl font-semibold">Scan a menu</h2>
-          <select className={input} value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)}>
-            {meta.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
-          <button className={btn} disabled={!file || busy} onClick={scan}>
-            {busy && !items ? "Reading menu…" : "Extract with Gemini"}
-          </button>
-
-          {items && (
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                {source === "sample" ? "⚠️ Sample data (Gemini unavailable). " : "Extracted by Gemini. "}Check these, edit if needed, then confirm.
-              </p>
-              {items.map((it, i) => (
-                <div key={i} className="grid grid-cols-[1fr_5rem_auto_auto] items-center gap-2">
-                  <input className={input} value={it.name} onChange={(e) => editItem(i, "name", e.target.value)} />
-                  <input className={input} type="number" step="0.01" value={it.price} onChange={(e) => editItem(i, "price", e.target.value)} />
-                  <label className="text-sm"><input type="checkbox" checked={it.vegetarian} onChange={(e) => editItem(i, "vegetarian", e.target.checked)} /> veg</label>
-                  <label className="text-sm"><input type="checkbox" checked={it.vegan} onChange={(e) => editItem(i, "vegan", e.target.checked)} /> vegan</label>
+        {!signedIn ? (
+          <Card>
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-semibold text-slate-900">Sign in to scan menus and add restaurants</div>
+                <div className="text-sm text-slate-500">
+                  {authConfigured ? "Only @sfsu.edu accounts can make changes. Searching stays open to everyone." : "Login isn't configured on this build yet."}
                 </div>
-              ))}
-              <button className={btn} disabled={busy} onClick={confirm}>Confirm &amp; Add</button>
+              </div>
+              <button onClick={handleSignIn} disabled={!authConfigured} className={btnPrimary}>Sign in with SFSU Google</button>
             </div>
-          )}
-          {msg && <p className="text-emerald-700">{msg}</p>}
-        </section>
-      </div>
+          </Card>
+        ) : (
+          <>
+            <Card title="Scan a menu" subtitle="Pick a restaurant, upload a clear photo, and review what Gemini finds.">
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Restaurant">
+                    <select className={field} value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)}>
+                      {meta.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Menu photo">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setFile(e.target.files[0])}
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-900 hover:file:bg-brand-100"
+                    />
+                  </Field>
+                </div>
+                <button className={btnPrimary} disabled={!file || busy} onClick={scan}>
+                  {busy && !items ? "Reading menu…" : "Extract with Gemini"}
+                </button>
+
+                {items && (
+                  <div className="space-y-3 rounded-xl bg-slate-50 p-4">
+                    <p className="text-sm text-slate-600">
+                      {source === "sample" ? "⚠️ Sample data (Gemini unavailable). " : `Gemini found ${items.length} item${items.length !== 1 ? "s" : ""}. `}
+                      Check names, prices and diet tags, then confirm.
+                    </p>
+                    <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                      {items.map((it, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_5.5rem_auto] items-center gap-2 sm:grid-cols-[1fr_5.5rem_auto_auto_auto]">
+                          <input className={field} value={it.name} onChange={(e) => editItem(i, "name", e.target.value)} />
+                          <input className={field} type="number" step="0.01" value={it.price} onChange={(e) => editItem(i, "price", e.target.value)} />
+                          <button type="button" onClick={() => removeItem(i)} aria-label={`Remove ${it.name}`} className="rounded-lg px-2 py-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:order-last">✕</button>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <input type="checkbox" checked={it.vegetarian} onChange={(e) => editItem(i, "vegetarian", e.target.checked)} /> Veg
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <input type="checkbox" checked={it.vegan} onChange={(e) => editItem(i, "vegan", e.target.checked)} /> Vegan
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <button className={btnGold} disabled={busy || !items.length} onClick={confirm}>Confirm &amp; add to menu</button>
+                  </div>
+                )}
+                {msg && <p className="text-sm font-medium text-emerald-700">{msg}</p>}
+              </div>
+            </Card>
+
+            <Card title="Add a restaurant" subtitle="Enter the walking minutes from each building. Then scan its menu above.">
+              <form onSubmit={submitRestaurant} className="space-y-4">
+                <Field label="Name">
+                  <input className={field} placeholder="e.g. Campus Grill" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {meta.buildings.map((b) => (
+                    <Field key={b} label={`Walk from ${b}`}>
+                      <input
+                        className={field}
+                        type="number"
+                        min="1"
+                        required
+                        placeholder="minutes"
+                        value={newR.walk[b] || ""}
+                        onChange={(e) => setNewR({ ...newR, walk: { ...newR.walk, [b]: e.target.value } })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+                <button className={btnPrimary}>Add restaurant</button>
+              </form>
+            </Card>
+          </>
+        )}
+      </main>
+
+      <footer className="mx-auto max-w-3xl px-4 pb-10 pt-2 text-xs text-slate-400 sm:px-6">
+        Built at SF Hacks x GDG. Menus are read by Gemini and stored in Firestore.
+      </footer>
     </div>
   );
 }
