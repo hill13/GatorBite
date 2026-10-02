@@ -40,7 +40,6 @@ export const menuItems = {
     // Real Taza menu, read from two photos (breakfast board + tacos/quesadillas board). Drinks/extras skipped.
     // The specialty quesadillas/nachos board is NOT seeded on purpose: it is the live-scan demo photo.
     { name: "Breakfast Burrito", price: 6.5, vegetarian: true, vegan: false },
-    { name: "Breakfast Supreme", price: 7.5, vegetarian: false, vegan: false },
     { name: "The Southwest", price: 7.5, vegetarian: true, vegan: false },
     { name: "The Moroccan", price: 7.5, vegetarian: true, vegan: false },
     { name: "Acai Smoothie", price: 6.5, vegetarian: true, vegan: true },
@@ -49,7 +48,5 @@ export const menuItems = {
     { name: "Veggie Quesadilla", price: 6.25, vegetarian: true, vegan: false },
     { name: "Chips & Salsa Fresca", price: 2.5, vegetarian: true, vegan: true },
     { name: "Taco Plate", price: 6.95, vegetarian: false, vegan: false },
-    { name: "Street-Style Tacos", price: 2.25, vegetarian: false, vegan: false },
-    { name: "Soft Tacos", price: 2.95, vegetarian: false, vegan: false },
   ],
 };
