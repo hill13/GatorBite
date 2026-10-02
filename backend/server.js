@@ -2,7 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { extractMenu } from "./gemini.js";
-import { restaurants, menuItems, buildings, destination } from "./data.js";
+import { restaurants, buildings, destination } from "./data.js";
+import { getRestaurants, saveItems } from "./db.js";
 
 const app = express();
 app.use(cors());
@@ -15,15 +16,15 @@ app.get("/api/meta", (_req, res) =>
 );
 
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class
-app.post("/api/recommendations", (req, res) => {
+app.post("/api/recommendations", async (req, res) => {
   const { building, diet, budget, minutesUntilClass } = req.body;
   const results = [];
-  for (const r of restaurants) {
+  for (const r of await getRestaurants()) {
     const walkTo = r.walkTimes[building];
     if (walkTo === undefined) continue;
     const total = walkTo + r.prepTime + r.walkTimeToClass;
     if (total > minutesUntilClass) continue;
-    for (const item of menuItems[r.id] || []) {
+    for (const item of r.items) {
       if (item.price > budget) continue;
       if (diet === "vegetarian" && !item.vegetarian) continue;
       if (diet === "vegan" && !item.vegan) continue;
@@ -41,14 +42,16 @@ app.post("/api/menus/extract", async (req, res) => {
   res.json(await extractMenu(imageBase64, mimeType));
 });
 
-// STUB: swapped for Firestore on feat/firestore
-app.post("/api/menus/save", (req, res) => {
+// Confirmed items -> Firestore (or memory if no key file)
+app.post("/api/menus/save", async (req, res) => {
   const { restaurantId, items } = req.body;
-  if (!menuItems[restaurantId]) return res.status(400).json({ error: "unknown restaurant" });
-  menuItems[restaurantId].push(
-    ...items.map((i) => ({ ...i, source: "gemini-scan", confirmedAt: Date.now() }))
-  );
-  res.json({ saved: items.length });
+  try {
+    if (!(await saveItems(restaurantId, items))) return res.status(400).json({ error: "unknown restaurant" });
+    res.json({ saved: items.length });
+  } catch (err) {
+    console.error("save failed:", err.message);
+    res.status(500).json({ error: "save failed" });
+  }
 });
 
 const port = process.env.PORT || 8080;
