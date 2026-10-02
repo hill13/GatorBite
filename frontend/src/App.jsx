@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getMeta, recommend, extract, save, addRestaurant } from "./api.js";
-import { watchUser, signIn, logOut, authDisabled, authConfigured } from "./auth.js";
+import { getMeta, recommend, extract, save, addRestaurant, addBuilding } from "./api.js";
+import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
 
 const field =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
@@ -17,8 +17,8 @@ const toBase64 = (file) =>
     r.readAsDataURL(file);
   });
 
-const Card = ({ title, subtitle, children }) => (
-  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+const Card = ({ title, subtitle, id, children }) => (
+  <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
     {title && <h2 className="text-lg font-semibold text-brand-900">{title}</h2>}
     {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
     <div className={title ? "mt-4" : ""}>{children}</div>
@@ -32,8 +32,14 @@ const Field = ({ label, children }) => (
   </label>
 );
 
+// walks: { [placeName]: minutes as typed } -> [{ [key]: placeName, minutes }] for the filled boxes only
+const toWalks = (walks, key) =>
+  Object.entries(walks)
+    .filter(([, m]) => m !== "" && m != null)
+    .map(([place, m]) => ({ [key]: place, minutes: Number(m) }));
+
 export default function App() {
-  const [meta, setMeta] = useState({ buildings: [], restaurants: [] });
+  const [meta, setMeta] = useState({ buildings: [], restaurants: [], shared: [], signedIn: false });
   const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
   const [excluded, setExcluded] = useState([]);
   const [results, setResults] = useState(null);
@@ -42,8 +48,11 @@ export default function App() {
 
   const [user, setUser] = useState(null);
   const signedIn = authDisabled || Boolean(user);
+  const [email, setEmail] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
 
-  const [newR, setNewR] = useState({ name: "", walk: {} });
+  const [newR, setNewR] = useState({ name: "", walks: {} });
+  const [newB, setNewB] = useState({ name: "", walks: {} });
   const [restaurantId, setRestaurantId] = useState("");
   const [file, setFile] = useState(null);
   const [items, setItems] = useState(null);
@@ -51,25 +60,50 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  useEffect(() => watchUser(setUser), []);
-
   useEffect(() => {
+    completeEmailLink().catch((err) => setError(err.message));
+    return watchUser(setUser);
+  }, []);
+
+  const loadMeta = () =>
     getMeta()
       .then((m) => {
         setMeta(m);
-        setForm((f) => ({ ...f, building: m.buildings[0], destination: m.buildings[0] }));
-        setRestaurantId(m.restaurants[0]?.id);
+        setForm((f) => ({
+          ...f,
+          building: m.buildings.includes(f.building) ? f.building : m.buildings[0],
+          destination: m.buildings.includes(f.destination) ? f.destination : m.buildings[0],
+        }));
+        setRestaurantId((id) => (m.restaurants.some((r) => r.id === id) ? id : m.restaurants[0]?.id));
+        return m;
       })
       .catch(() => setError("Can't reach the backend. Is it running?"));
-  }, []);
+
+  // reload what this visitor can see whenever they sign in or out
+  useEffect(() => {
+    loadMeta();
+    setResults(null);
+    setExcluded([]);
+  }, [user]);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const toggleRestaurant = (id) => setExcluded(excluded.includes(id) ? excluded.filter((x) => x !== id) : [...excluded, id]);
 
-  const handleSignIn = async () => {
+  const handleSendLink = async (e) => {
+    e.preventDefault();
     setError("");
     try {
-      await signIn();
+      await sendLink(email.trim());
+      setLinkSent(true);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError("");
+    try {
+      await signInWithGoogle();
     } catch (err) {
       if (err.code !== "auth/popup-closed-by-user") setError(err.message);
     }
@@ -95,12 +129,27 @@ export default function App() {
   const submitRestaurant = async (e) => {
     e.preventDefault();
     setError("");
+    setMsg("");
     try {
-      const created = await addRestaurant({ name: newR.name, walkTimes: newR.walk });
-      setMeta(await getMeta());
+      const created = await addRestaurant({ name: newR.name.trim(), walks: toWalks(newR.walks, "building") });
+      await loadMeta();
       setRestaurantId(created.id);
-      setNewR({ name: "", walk: {} });
-      setMsg(`Added ${created.name}. Select it under "Scan a menu" to add its items.`);
+      setNewR({ name: "", walks: {} });
+      setMsg(`Added ${created.name} (only you can see it). Select it under "Scan a menu" to add its items.`);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const submitBuilding = async (e) => {
+    e.preventDefault();
+    setError("");
+    setMsg("");
+    try {
+      const created = await addBuilding({ name: newB.name.trim(), walks: toWalks(newB.walks, "restaurantId") });
+      await loadMeta();
+      setNewB({ name: "", walks: {} });
+      setMsg(`Added ${created.name} (only you can see it). You can now pick it in the search above.`);
     } catch (err) {
       setError(err.message);
     }
@@ -129,7 +178,8 @@ export default function App() {
     try {
       await save({ restaurantId, items: items.map((it) => ({ ...it, price: Number(it.price) })) });
       setNewNames(items.map((it) => it.name));
-      setMsg(`Saved ${items.length} item${items.length !== 1 ? "s" : ""}. Search again to see them.`);
+      setMsg(`Saved ${items.length} item${items.length !== 1 ? "s" : ""} to your menus. Search again to see them.`);
+      await loadMeta();
       setItems(null);
       setFile(null);
     } catch (err) {
@@ -156,9 +206,7 @@ export default function App() {
                 <button onClick={logOut} className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">Sign out</button>
               </div>
             ) : (
-              <button onClick={handleSignIn} disabled={!authConfigured} className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-900 shadow-sm hover:bg-brand-50 disabled:opacity-60">
-                Sign in with Google
-              </button>
+              <a href="#account" className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-900 shadow-sm hover:bg-brand-50">Sign in</a>
             ))}
         </div>
       </header>
@@ -218,6 +266,7 @@ export default function App() {
                       }`}
                     >
                       {r.name}
+                      {r.mine && <span className="ml-1.5 text-[10px] font-bold uppercase text-gold-400">yours</span>}
                     </button>
                   );
                 })}
@@ -260,30 +309,75 @@ export default function App() {
         )}
 
         <div className="pt-2">
-          <h2 className="text-xl font-bold text-brand-900">Help keep menus fresh</h2>
-          <p className="text-sm text-slate-500">Snap a menu photo and Gemini reads it into the app. Sign in to contribute.</p>
+          <h2 className="text-xl font-bold text-brand-900">Make it yours</h2>
+          <p className="text-sm text-slate-500">Add your own buildings, restaurants and menus. Only you can see what you add.</p>
         </div>
 
+        {msg && <p className="text-sm font-medium text-emerald-700">{msg}</p>}
+
         {!signedIn ? (
-          <Card>
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="font-semibold text-slate-900">Sign in to scan menus and add restaurants</div>
-                <div className="text-sm text-slate-500">
-                  {authConfigured ? "Only approved accounts can make changes. Searching stays open to everyone." : "Login isn't configured on this build yet."}
-                </div>
-              </div>
-              <button onClick={handleSignIn} disabled={!authConfigured} className={btnPrimary}>Sign in with Google</button>
-            </div>
+          <Card id="account" title="Sign in to add your own places" subtitle="Everyone shares the places below. Anything you add is only visible to you.">
+            <p className="mb-4 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-900">
+              These {meta.shared.length} places are already here for everyone: <strong>{meta.shared.join(", ")}</strong>. To add more, sign in. New places are saved for your account only.
+            </p>
+            {!authConfigured ? (
+              <p className="text-sm text-slate-500">Login isn't configured on this build yet.</p>
+            ) : linkSent ? (
+              <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                Check your inbox. We sent a sign-in link to <strong>{email}</strong>. Open it on this device. If you don't see it, check your spam folder.
+              </p>
+            ) : (
+              <form onSubmit={handleSendLink} className="flex flex-col gap-3 sm:flex-row">
+                <input className={field} type="email" required placeholder="you@sfsu.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <button className={btnPrimary}>Email me a sign-in link</button>
+              </form>
+            )}
+            {authConfigured && !linkSent && (
+              <button onClick={handleGoogle} className="mt-3 text-xs font-medium text-brand-600 underline hover:text-brand-900">
+                Approved Google account? Continue with Google
+              </button>
+            )}
           </Card>
         ) : (
           <>
-            <Card title="Scan a menu" subtitle="Pick a restaurant, upload a clear photo, and review what Gemini finds.">
+            <Card title="Add a restaurant" subtitle="Enter the walking minutes from the buildings you know. You only need one.">
+              <form onSubmit={submitRestaurant} className="space-y-4">
+                <Field label="Name">
+                  <input className={field} placeholder="e.g. Campus Grill" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {meta.buildings.map((b) => (
+                    <Field key={b} label={`From ${b}`}>
+                      <input className={field} type="number" min="1" placeholder="minutes (optional)" value={newR.walks[b] ?? ""} onChange={(e) => setNewR({ ...newR, walks: { ...newR.walks, [b]: e.target.value } })} />
+                    </Field>
+                  ))}
+                </div>
+                <button className={btnPrimary}>Add restaurant</button>
+              </form>
+            </Card>
+
+            <Card title="Add a building or class location" subtitle="Enter the walking minutes to the restaurants you know. You only need one.">
+              <form onSubmit={submitBuilding} className="space-y-4">
+                <Field label="Name">
+                  <input className={field} placeholder="e.g. Science Building" value={newB.name} onChange={(e) => setNewB({ ...newB, name: e.target.value })} required />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {meta.restaurants.map((r) => (
+                    <Field key={r.id} label={`To ${r.name}`}>
+                      <input className={field} type="number" min="1" placeholder="minutes (optional)" value={newB.walks[r.id] ?? ""} onChange={(e) => setNewB({ ...newB, walks: { ...newB.walks, [r.id]: e.target.value } })} />
+                    </Field>
+                  ))}
+                </div>
+                <button className={btnPrimary}>Add building</button>
+              </form>
+            </Card>
+
+            <Card title="Scan a menu" subtitle="Pick a restaurant, upload a clear photo, and review what Gemini finds. Saved items are only visible to you.">
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Restaurant">
                     <select className={field} value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)}>
-                      {meta.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      {meta.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}{r.mine ? " (yours)" : ""}</option>)}
                     </select>
                   </Field>
                   <Field label="Menu photo">
@@ -320,35 +414,10 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    <button className={btnGold} disabled={busy || !items.length} onClick={confirm}>Confirm &amp; add to menu</button>
+                    <button className={btnGold} disabled={busy || !items.length} onClick={confirm}>Confirm &amp; add to my menu</button>
                   </div>
                 )}
-                {msg && <p className="text-sm font-medium text-emerald-700">{msg}</p>}
               </div>
-            </Card>
-
-            <Card title="Add a restaurant" subtitle="Enter the walking minutes from each building. Then scan its menu above.">
-              <form onSubmit={submitRestaurant} className="space-y-4">
-                <Field label="Name">
-                  <input className={field} placeholder="e.g. Campus Grill" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {meta.buildings.map((b) => (
-                    <Field key={b} label={`Walk from ${b}`}>
-                      <input
-                        className={field}
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="minutes"
-                        value={newR.walk[b] || ""}
-                        onChange={(e) => setNewR({ ...newR, walk: { ...newR.walk, [b]: e.target.value } })}
-                      />
-                    </Field>
-                  ))}
-                </div>
-                <button className={btnPrimary}>Add restaurant</button>
-              </form>
             </Card>
           </>
         )}

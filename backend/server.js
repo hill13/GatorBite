@@ -2,9 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { extractMenu } from "./gemini.js";
-import { buildings } from "./data.js";
-import { requireSfsu } from "./auth.js";
-import { getRestaurants, listRestaurants, addRestaurant, saveItems } from "./db.js";
+import { optionalUser, requireUser } from "./auth.js";
+import { getView, addUserRestaurant, addUserBuilding, saveUserItems } from "./db.js";
 
 const app = express();
 app.use(cors());
@@ -12,28 +11,62 @@ app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_req, res) => res.send("GatorBite API ok"));
 
-app.get("/api/meta", async (_req, res) => res.json({ buildings, restaurants: await listRestaurants() }));
+// What this visitor can see: the shared places, plus their own if signed in.
+app.get("/api/meta", optionalUser, async (req, res) => {
+  const v = await getView(req.user?.uid);
+  res.json({
+    buildings: v.buildings,
+    restaurants: v.restaurants.map(({ id, name, mine }) => ({ id, name, mine })),
+    shared: v.shared,
+    signedIn: Boolean(req.user),
+  });
+});
 
-// Add a restaurant: name + walk minutes from each building
-app.post("/api/restaurants", requireSfsu, async (req, res) => {
+// Keep only walk entries with a known place and a positive number of minutes.
+const cleanWalks = (list, key, allowed) =>
+  (Array.isArray(list) ? list : [])
+    .map((w) => ({ [key]: w[key], minutes: Number(w.minutes) }))
+    .filter((w) => allowed.includes(w[key]) && Number.isFinite(w.minutes) && w.minutes > 0);
+
+const taken = (names, name) => names.some((n) => n.toLowerCase() === name.toLowerCase());
+
+// Add a restaurant (private to the user). Needs a walk time from at least one building.
+app.post("/api/restaurants", requireUser, async (req, res) => {
   const name = String(req.body.name || "").trim();
-  const walkTimes = {};
-  for (const b of buildings) {
-    const m = Number(req.body.walkTimes?.[b]);
-    if (!Number.isFinite(m) || m <= 0) return res.status(400).json({ error: `Walk time from ${b} must be a positive number` });
-    walkTimes[b] = m;
-  }
   if (!name) return res.status(400).json({ error: "Name required" });
-  const created = await addRestaurant({ name, walkTimes });
-  if (!created) return res.status(400).json({ error: "That restaurant already exists" });
-  res.json(created);
+  const v = await getView(req.user.uid);
+  if (taken(v.restaurants.map((r) => r.name), name)) return res.status(400).json({ error: "You already have a restaurant with that name" });
+  const walks = cleanWalks(req.body.walks, "building", v.buildings);
+  if (!walks.length) return res.status(400).json({ error: "Add the walking time from at least one building" });
+  try {
+    res.json(await addUserRestaurant(req.user.uid, { name, walks }));
+  } catch (err) {
+    console.error("add restaurant failed:", err.message);
+    res.status(500).json({ error: "Could not save" });
+  }
+});
+
+// Add a building / class location (private to the user). Needs a walk time to at least one restaurant.
+app.post("/api/buildings", requireUser, async (req, res) => {
+  const name = String(req.body.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Name required" });
+  const v = await getView(req.user.uid);
+  if (taken(v.buildings, name)) return res.status(400).json({ error: "You already have a building with that name" });
+  const walks = cleanWalks(req.body.walks, "restaurantId", v.restaurants.map((r) => r.id));
+  if (!walks.length) return res.status(400).json({ error: "Add the walking time to at least one restaurant" });
+  try {
+    res.json(await addUserBuilding(req.user.uid, { name, walks }));
+  } catch (err) {
+    console.error("add building failed:", err.message);
+    res.status(500).json({ error: "Could not save" });
+  }
 });
 
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
-app.post("/api/recommendations", async (req, res) => {
+app.post("/api/recommendations", optionalUser, async (req, res) => {
   const { building, destination, diet, budget, minutesUntilClass, restaurantIds } = req.body;
   const results = [];
-  for (const r of await getRestaurants()) {
+  for (const r of (await getView(req.user?.uid)).restaurants) {
     if (restaurantIds && !restaurantIds.includes(r.id)) continue;
     const walkTo = r.walkTimes[building];
     const walkToClass = r.walkTimes[destination || building];
@@ -52,17 +85,20 @@ app.post("/api/recommendations", async (req, res) => {
 });
 
 // Photo -> Gemini -> structured items (does not save; the user confirms first)
-app.post("/api/menus/extract", requireSfsu, async (req, res) => {
+app.post("/api/menus/extract", requireUser, async (req, res) => {
   const { imageBase64, mimeType } = req.body;
   if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
   res.json(await extractMenu(imageBase64, mimeType));
 });
 
-// Confirmed items -> Firestore (or memory if no key file)
-app.post("/api/menus/save", requireSfsu, async (req, res) => {
+// Confirmed items -> Firestore, private to the signed-in user
+app.post("/api/menus/save", requireUser, async (req, res) => {
   const { restaurantId, items } = req.body;
+  const v = await getView(req.user.uid);
+  if (!v.restaurants.some((r) => r.id === restaurantId)) return res.status(400).json({ error: "unknown restaurant" });
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: "no items to save" });
   try {
-    if (!(await saveItems(restaurantId, items))) return res.status(400).json({ error: "unknown restaurant" });
+    await saveUserItems(req.user.uid, restaurantId, items);
     res.json({ saved: items.length });
   } catch (err) {
     console.error("save failed:", err.message);
