@@ -15,6 +15,7 @@ const toBase64 = (file) =>
 export default function App() {
   const [meta, setMeta] = useState({ buildings: [], restaurants: [] });
   const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
+  const [excluded, setExcluded] = useState([]);
   const [results, setResults] = useState(null);
   const [newNames, setNewNames] = useState([]);
   const [error, setError] = useState("");
@@ -44,6 +45,7 @@ export default function App() {
     try {
       const out = await recommend({
         ...form,
+        restaurantIds: meta.restaurants.map((r) => r.id).filter((id) => !excluded.includes(id)),
         budget: Number(form.budget),
         minutesUntilClass: Number(form.minutesUntilClass),
       });
@@ -126,7 +128,22 @@ export default function App() {
               <input className={input} type="number" min="1" value={form.minutesUntilClass} onChange={set("minutesUntilClass")} />
             </label>
           </div>
-          <button className={btn}>Find food</button>
+          <div>
+            <span className="text-sm font-medium">Include restaurants</span>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              {meta.restaurants.map((r) => (
+                <label key={r.id} className="text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!excluded.includes(r.id)}
+                    onChange={() => setExcluded(excluded.includes(r.id) ? excluded.filter((x) => x !== r.id) : [...excluded, r.id])}
+                  />{" "}
+                  {r.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <button className={btn} disabled={excluded.length === meta.restaurants.length}>Find food</button>
         </form>
 
         {results && (

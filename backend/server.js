@@ -17,9 +17,10 @@ app.get("/api/meta", (_req, res) =>
 
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
 app.post("/api/recommendations", async (req, res) => {
-  const { building, destination, diet, budget, minutesUntilClass } = req.body;
+  const { building, destination, diet, budget, minutesUntilClass, restaurantIds } = req.body;
   const results = [];
   for (const r of await getRestaurants()) {
+    if (restaurantIds && !restaurantIds.includes(r.id)) continue;
     const walkTo = r.walkTimes[building];
     const walkToClass = r.walkTimes[destination || building];
     if (walkTo === undefined || walkToClass === undefined) continue;
