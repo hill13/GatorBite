@@ -278,7 +278,7 @@ export default function App() {
             subtitle={results.length ? "Fastest first. Time is walk there + prep + walk to class." : undefined}
           >
             {results.length === 0 ? (
-              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on.</p>
+              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on. If you picked a building with no walking times yet, add a restaurant below with its walking time from that building.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {results.map((r, i) => (

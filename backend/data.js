@@ -1,10 +1,26 @@
 // Seed data (copied into Firestore by `npm run seed`). Walk times are real; prep time is a flat 5 min.
-export const buildings = ["Thornton Hall", "SFSU Library", "Mashouff Wellness Center"];
+// Campus buildings everyone sees. Codes in parentheses help the schedule scan match "FA 110" or "HUM 133".
+// The shared restaurants below only have walking times for the buildings listed in their walkTimes; a building with
+// no time to a restaurant simply won't return that restaurant until a time is added.
+export const buildings = [
+  "Thornton Hall",
+  "SFSU Library",
+  "Mashouf Wellness Center",
+  "Fine Arts (FA)",
+  "Marcus Hall (MH)",
+  "Creative Arts (CA)",
+  "Humanities (HUM)",
+  "Administration (ADM)",
+  "Cesar Chavez Student Center (CC)",
+  "Cox Stadium & Gymnasium",
+  "Gator Health Center",
+  "Health & Social Sciences (HSS)",
+];
 
 export const restaurants = [
-  { id: "cafe-rosso", name: "Cafe Rosso", walkTimes: { "Thornton Hall": 6, "SFSU Library": 6, "Mashouff Wellness Center": 5 }, prepTime: 5 },
-  { id: "carmelinas", name: "Carmelina's Cafe", walkTimes: { "Thornton Hall": 5, "SFSU Library": 6, "Mashouff Wellness Center": 13 }, prepTime: 5 },
-  { id: "taza", name: "Taza Smoothies and Wraps", walkTimes: { "Thornton Hall": 8, "SFSU Library": 8, "Mashouff Wellness Center": 5 }, prepTime: 5 },
+  { id: "cafe-rosso", name: "Cafe Rosso", walkTimes: { "Thornton Hall": 6, "SFSU Library": 6, "Mashouf Wellness Center": 5 }, prepTime: 5 },
+  { id: "carmelinas", name: "Carmelina's Cafe", walkTimes: { "Thornton Hall": 5, "SFSU Library": 6, "Mashouf Wellness Center": 13 }, prepTime: 5 },
+  { id: "taza", name: "Taza Smoothies and Wraps", walkTimes: { "Thornton Hall": 8, "SFSU Library": 8, "Mashouf Wellness Center": 5 }, prepTime: 5 },
 ];
 
 // item(name, price, tags): tags is a space-separated list of what the dish IS or CONTAINS:
