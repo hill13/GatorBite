@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMeta, recommend, extract, save, addRestaurant, addBuilding } from "./api.js";
+import { getMeta, recommend, extract, save, addRestaurant } from "./api.js";
 import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
 
 import { field, btnPrimary, btnGold, toBase64, Card, Field, fillWalks, AssumeField } from "./ui.jsx";
@@ -29,7 +29,6 @@ export default function App() {
   const [linkSent, setLinkSent] = useState(false);
 
   const [newR, setNewR] = useState({ name: "", walks: {}, assume: "" });
-  const [newB, setNewB] = useState({ name: "", walks: {}, assume: "" });
   const [restaurantId, setRestaurantId] = useState("");
   const [file, setFile] = useState(null);
   const [items, setItems] = useState(null);
@@ -113,20 +112,6 @@ export default function App() {
       setRestaurantId(created.id);
       setNewR({ name: "", walks: {}, assume: "" });
       setMsg(`Added ${created.name} (only you can see it). Select it under "Scan a menu" to add its items.`);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const submitBuilding = async (e) => {
-    e.preventDefault();
-    setError("");
-    setMsg("");
-    try {
-      const created = await addBuilding({ name: newB.name.trim(), walks: fillWalks(newB.walks, "restaurantId", meta.restaurants.map((r) => r.id), newB.assume) });
-      await loadMeta();
-      setNewB({ name: "", walks: {}, assume: "" });
-      setMsg(`Added ${created.name} (only you can see it). You can now pick it in the search above.`);
     } catch (err) {
       setError(err.message);
     }
@@ -278,7 +263,7 @@ export default function App() {
             subtitle={results.length ? "Fastest first. Time is walk there + prep + walk to class." : undefined}
           >
             {results.length === 0 ? (
-              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on. If you picked a building with no walking times yet, add a restaurant below with its walking time from that building.</p>
+              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on. </p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {results.map((r, i) => (
@@ -304,11 +289,11 @@ export default function App() {
           </Card>
         )}
 
-        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} restaurants={meta.restaurants} diets={form.diets} budget={form.budget} onBuildingAdded={loadMeta} />}
+        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} diets={form.diets} budget={form.budget} />}
 
         <div className="pt-2">
           <h2 className="text-xl font-bold text-ink-900">Make it yours</h2>
-          <p className="text-sm text-slate-500">Add your own buildings, restaurants and menus. Only you can see what you add.</p>
+          <p className="text-sm text-slate-500">Add your own restaurants and menus. Only you can see what you add.</p>
         </div>
 
         {msg && <p className="text-sm font-medium text-ink-700">{msg}</p>}
@@ -352,23 +337,6 @@ export default function App() {
                 </div>
                 <AssumeField value={newR.assume} onChange={(v) => setNewR({ ...newR, assume: v })} />
                 <button className={btnPrimary}>Add restaurant</button>
-              </form>
-            </Card>
-
-            <Card title="Add a building or class location" subtitle="Enter the walking minutes to the restaurants you know, or one number to use for all of them.">
-              <form onSubmit={submitBuilding} className="space-y-4">
-                <Field label="Name">
-                  <input className={field} placeholder="e.g. Science Building" value={newB.name} onChange={(e) => setNewB({ ...newB, name: e.target.value })} required />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {meta.restaurants.map((r) => (
-                    <Field key={r.id} label={`To ${r.name}`}>
-                      <input className={field} type="number" min="1" placeholder="minutes (optional)" value={newB.walks[r.id] ?? ""} onChange={(e) => setNewB({ ...newB, walks: { ...newB.walks, [r.id]: e.target.value } })} />
-                    </Field>
-                  ))}
-                </div>
-                <AssumeField value={newB.assume} onChange={(v) => setNewB({ ...newB, assume: v })} />
-                <button className={btnPrimary}>Add building</button>
               </form>
             </Card>
 

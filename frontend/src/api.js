@@ -18,7 +18,6 @@ export const recommend = (q) => send("POST", "/api/recommendations", q);
 export const extract = (b) => send("POST", "/api/menus/extract", b);
 export const save = (b) => send("POST", "/api/menus/save", b);
 export const addRestaurant = (b) => send("POST", "/api/restaurants", b);
-export const addBuilding = (b) => send("POST", "/api/buildings", b);
 export const extractSchedule = (b) => send("POST", "/api/schedule/extract", b);
 export const getSchedule = () => send("GET", "/api/schedule");
 export const saveSchedule = (b) => send("POST", "/api/schedule/save", b);
