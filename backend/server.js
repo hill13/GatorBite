@@ -1,13 +1,17 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { restaurants, menuItems } from "./data.js";
+import { restaurants, menuItems, buildings, destination } from "./data.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_req, res) => res.send("GatorBite API ok"));
+
+app.get("/api/meta", (_req, res) =>
+  res.json({ buildings, destination, restaurants: restaurants.map(({ id, name }) => ({ id, name })) })
+);
 
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class
 app.post("/api/recommendations", (req, res) => {
