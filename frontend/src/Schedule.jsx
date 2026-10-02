@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { extractSchedule, getSchedule, saveSchedule, suggestSchedule } from "./api.js";
+import { extractSchedule, getSchedule, saveSchedule, suggestSchedule, addBuilding } from "./api.js";
 import { field, btnPrimary, btnGold, toBase64, Card, Field } from "./ui.jsx";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -12,7 +12,7 @@ const clock = (t) => {
 
 const duration = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`);
 
-export default function Schedule({ buildings, diets, budget }) {
+export default function Schedule({ buildings, restaurants, diets, budget, onBuildingAdded }) {
   const [saved, setSaved] = useState([]);
   const [plan, setPlan] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -21,6 +21,7 @@ export default function Schedule({ buildings, diets, budget }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [adding, setAdding] = useState(null); // { name, walks: { [restaurantId]: minutes } } while adding a missing building
 
   const loadPlan = async () => {
     try {
@@ -60,6 +61,31 @@ export default function Schedule({ buildings, diets, budget }) {
 
   const edit = (i, k, v) => setDraft(draft.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
   const unmapped = draft ? draft.filter((c) => !c.building).length : 0;
+
+  // New buildings found on the schedule that the user hasn't added yet: [{ guess, count }]
+  const missing = draft
+    ? Object.entries(
+        draft.filter((c) => !c.building && c.buildingGuess).reduce((acc, c) => ({ ...acc, [c.buildingGuess]: (acc[c.buildingGuess] || 0) + 1 }), {})
+      ).map(([guess, count]) => ({ guess, count }))
+    : [];
+
+  const submitBuilding = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const name = adding.name.trim();
+      const walks = Object.entries(adding.walks)
+        .filter(([, m]) => m !== "" && m != null)
+        .map(([restaurantId, m]) => ({ restaurantId, minutes: Number(m) }));
+      const created = await addBuilding({ name, walks });
+      await onBuildingAdded();
+      // every class that was read as that building now maps to it
+      setDraft(draft.map((c) => (!c.building && c.buildingGuess === adding.guess ? { ...c, building: created.name } : c)));
+      setAdding(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const confirm = async () => {
     setBusy(true);
@@ -106,6 +132,48 @@ export default function Schedule({ buildings, diets, budget }) {
               Check the times and pick the building for each class.
               {unmapped > 0 && <strong className="text-ink-900"> {unmapped} still need a building and will be skipped.</strong>}
             </p>
+            {missing.length > 0 && (
+              <div className="space-y-3 rounded-lg border border-accent-400 bg-accent-100 p-3">
+                <p className="text-sm font-medium text-ink-900">Buildings on your schedule that aren't on your account yet:</p>
+                {missing.map(({ guess, count }) =>
+                  adding?.guess === guess ? (
+                    <form key={guess} onSubmit={submitBuilding} className="space-y-3 rounded-lg bg-white p-3">
+                      <Field label="Building name">
+                        <input className={field} value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} required />
+                      </Field>
+                      <p className="text-xs text-slate-500">Walking minutes from this building to the restaurants you know. You only need one.</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {restaurants.map((r) => (
+                          <Field key={r.id} label={`To ${r.name}`}>
+                            <input
+                              className={field}
+                              type="number"
+                              min="1"
+                              placeholder="minutes (optional)"
+                              value={adding.walks[r.id] ?? ""}
+                              onChange={(e) => setAdding({ ...adding, walks: { ...adding.walks, [r.id]: e.target.value } })}
+                            />
+                          </Field>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button className={btnPrimary}>Add building</button>
+                        <button type="button" onClick={() => setAdding(null)} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">Cancel</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      key={guess}
+                      onClick={() => setAdding({ guess, name: guess, walks: {} })}
+                      className="mr-2 rounded-full border border-ink-900 bg-white px-3.5 py-1.5 text-sm font-medium text-ink-900 hover:bg-ink-50"
+                    >
+                      + Add “{guess}” <span className="text-slate-500">({count} class{count !== 1 ? "es" : ""})</span>
+                    </button>
+                  )
+                )}
+              </div>
+            )}
             <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
               {draft.map((c, i) => (
                 <div key={i} className="grid grid-cols-2 items-center gap-2 border-b border-slate-200 pb-3 sm:grid-cols-[1fr_5rem_6.5rem_6.5rem_1fr_auto]">

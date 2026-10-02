@@ -310,7 +310,7 @@ export default function App() {
           </Card>
         )}
 
-        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} diets={form.diets} budget={form.budget} />}
+        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} restaurants={meta.restaurants} diets={form.diets} budget={form.budget} onBuildingAdded={loadMeta} />}
 
         <div className="pt-2">
           <h2 className="text-xl font-bold text-ink-900">Make it yours</h2>

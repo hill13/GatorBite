@@ -93,7 +93,13 @@ function cleanSchedule(raw, buildings) {
     if (!start || !end || end <= start) continue;
     const building = buildings.includes(c.building) ? c.building : null;
     for (const day of Array.isArray(c.days) ? c.days : []) {
-      if (DAYS.includes(day)) out.push({ course: String(c.course || "Class").trim(), day, start, end, location: String(c.location || "").trim(), building });
+      if (DAYS.includes(day)) {
+        const location = String(c.location || "").trim();
+        // "HSS 120" -> "HSS", "Thornton Hall 105" -> "Thornton Hall": a name to offer when no building matches
+        const stripped = location.replace(/\s*(?:room|rm\.?)?\s*#?(?:[A-Za-z]{1,3}-)?\d+[A-Za-z]?\s*$/i, "").trim();
+        const buildingGuess = /^(online|remote|tba|tbd|zoom|async)/i.test(stripped) ? "" : stripped;
+        out.push({ course: String(c.course || "Class").trim(), day, start, end, location, building, buildingGuess });
+      }
     }
   }
   return out;
