@@ -10,7 +10,23 @@ export const restaurants = [
 
 // Placeholder items so the first search returns 2 results; the scan adds the third.
 export const menuItems = {
-  "cafe-rosso": [{ name: "Veggie Wrap", price: 9.5, vegetarian: true, vegan: false }],
+  "cafe-rosso": [
+    // Real Cafe Rosso menu (meals only, full-size prices). vegan=true only where the menu says vegan.
+    { name: "Ham or Turkey Croissant", price: 5.95, vegetarian: false, vegan: false },
+    { name: "Mediterranean Breakfast Sandwich", price: 8.25, vegetarian: true, vegan: false },
+    { name: "Bacon, Egg & Cheese Sandwich", price: 9.5, vegetarian: false, vegan: false },
+    { name: "Falafel Hummus Sandwich", price: 10.95, vegetarian: true, vegan: false },
+    { name: "Vegan Portobello Sandwich", price: 10.5, vegetarian: true, vegan: true },
+    { name: "Basil Mozzarella Sandwich", price: 11.25, vegetarian: true, vegan: false },
+    { name: "Eggplant Parm Sandwich", price: 11.5, vegetarian: true, vegan: false },
+    { name: "Rosso Club", price: 11.75, vegetarian: false, vegan: false },
+    { name: "Chicken Teriyaki Rice Bowl", price: 10.95, vegetarian: false, vegan: false },
+    { name: "Veggie Chicken Teriyaki Rice Bowl", price: 10.95, vegetarian: true, vegan: false },
+    { name: "Veggie Burger", price: 8.95, vegetarian: true, vegan: false },
+    { name: "Cheeseburger", price: 8.95, vegetarian: false, vegan: false },
+    { name: "Mac 'n Cheese & Garlic Bread", price: 7.95, vegetarian: true, vegan: false },
+    { name: "Grilled Three Cheese", price: 9.5, vegetarian: true, vegan: false },
+  ],
   carmelinas: [{ name: "Caprese Sandwich", price: 10.5, vegetarian: true, vegan: false }],
   taza: [{ name: "Chicken Wrap", price: 8, vegetarian: false, vegan: false }],
 };
