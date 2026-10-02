@@ -157,7 +157,7 @@ export default function App() {
               </div>
             ) : (
               <button onClick={handleSignIn} disabled={!authConfigured} className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-900 shadow-sm hover:bg-brand-50 disabled:opacity-60">
-                Sign in with SFSU Google
+                Sign in with Google
               </button>
             ))}
         </div>
@@ -261,7 +261,7 @@ export default function App() {
 
         <div className="pt-2">
           <h2 className="text-xl font-bold text-brand-900">Help keep menus fresh</h2>
-          <p className="text-sm text-slate-500">Snap a menu photo and Gemini reads it into the app. Sign in with your SFSU account to contribute.</p>
+          <p className="text-sm text-slate-500">Snap a menu photo and Gemini reads it into the app. Sign in to contribute.</p>
         </div>
 
         {!signedIn ? (
@@ -270,10 +270,10 @@ export default function App() {
               <div>
                 <div className="font-semibold text-slate-900">Sign in to scan menus and add restaurants</div>
                 <div className="text-sm text-slate-500">
-                  {authConfigured ? "Only @sfsu.edu accounts can make changes. Searching stays open to everyone." : "Login isn't configured on this build yet."}
+                  {authConfigured ? "Only approved accounts can make changes. Searching stays open to everyone." : "Login isn't configured on this build yet."}
                 </div>
               </div>
-              <button onClick={handleSignIn} disabled={!authConfigured} className={btnPrimary}>Sign in with SFSU Google</button>
+              <button onClick={handleSignIn} disabled={!authConfigured} className={btnPrimary}>Sign in with Google</button>
             </div>
           </Card>
         ) : (

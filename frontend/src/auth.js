@@ -32,7 +32,7 @@ export async function signIn() {
   const email = (user.email || "").toLowerCase();
   if (!(email.endsWith(`@${DOMAIN}`) || EXTRA.includes(email))) {
     await signOut(auth);
-    throw new Error(`Please use your @${DOMAIN} account`);
+    throw new Error("This Google account is not on the approved list");
   }
 }
 

@@ -11,12 +11,12 @@ export async function requireSfsu(req, res, next) {
   if (process.env.AUTH_DISABLED === "true") return next();
   if (!usingFirestore) return res.status(500).json({ error: "Auth not configured on the server" });
   const token = (req.headers.authorization || "").replace(/^Bearer /, "");
-  if (!token) return res.status(401).json({ error: "Please sign in with your SFSU Google account" });
+  if (!token) return res.status(401).json({ error: "Please sign in with Google first" });
   try {
     const user = await getAuth().verifyIdToken(token);
     const email = (user.email || "").toLowerCase();
     if (!user.email_verified || !(email.endsWith(`@${DOMAIN}`) || EXTRA.includes(email))) {
-      return res.status(403).json({ error: `Only @${DOMAIN} accounts can do this` });
+      return res.status(403).json({ error: "This account is not approved to make changes" });
     }
     req.user = user;
     next();
