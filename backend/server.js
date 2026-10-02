@@ -2,8 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { extractMenu } from "./gemini.js";
-import { restaurants, buildings } from "./data.js";
-import { getRestaurants, saveItems } from "./db.js";
+import { buildings } from "./data.js";
+import { getRestaurants, listRestaurants, addRestaurant, saveItems } from "./db.js";
 
 const app = express();
 app.use(cors());
@@ -11,9 +11,22 @@ app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_req, res) => res.send("GatorBite API ok"));
 
-app.get("/api/meta", (_req, res) =>
-  res.json({ buildings, restaurants: restaurants.map(({ id, name }) => ({ id, name })) })
-);
+app.get("/api/meta", async (_req, res) => res.json({ buildings, restaurants: await listRestaurants() }));
+
+// Add a restaurant: name + walk minutes from each building
+app.post("/api/restaurants", async (req, res) => {
+  const name = String(req.body.name || "").trim();
+  const walkTimes = {};
+  for (const b of buildings) {
+    const m = Number(req.body.walkTimes?.[b]);
+    if (!Number.isFinite(m) || m <= 0) return res.status(400).json({ error: `Walk time from ${b} must be a positive number` });
+    walkTimes[b] = m;
+  }
+  if (!name) return res.status(400).json({ error: "Name required" });
+  const created = await addRestaurant({ name, walkTimes });
+  if (!created) return res.status(400).json({ error: "That restaurant already exists" });
+  res.json(created);
+});
 
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
 app.post("/api/recommendations", async (req, res) => {

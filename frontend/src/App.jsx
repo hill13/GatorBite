@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMeta, recommend, extract, save } from "./api.js";
+import { getMeta, recommend, extract, save, addRestaurant } from "./api.js";
 
 const input = "w-full rounded-lg border border-gray-300 px-3 py-2";
 const btn = "rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50";
@@ -16,6 +16,7 @@ export default function App() {
   const [meta, setMeta] = useState({ buildings: [], restaurants: [] });
   const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
   const [excluded, setExcluded] = useState([]);
+  const [newR, setNewR] = useState({ name: "", walk: {} });
   const [results, setResults] = useState(null);
   const [newNames, setNewNames] = useState([]);
   const [error, setError] = useState("");
@@ -36,6 +37,20 @@ export default function App() {
       })
       .catch(() => setError("Can't reach the backend. Is it running on :8080?"));
   }, []);
+
+  const submitRestaurant = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const created = await addRestaurant({ name: newR.name, walkTimes: newR.walk });
+      setMeta(await getMeta());
+      setRestaurantId(created.id);
+      setNewR({ name: "", walk: {} });
+      setMsg(`Added ${created.name}. Pick it under "Scan a menu" to add its items.`);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -168,6 +183,27 @@ export default function App() {
             </ul>
           </section>
         )}
+
+        <form onSubmit={submitRestaurant} className="space-y-3 rounded-xl bg-white p-4 shadow">
+          <h2 className="text-xl font-semibold">Add a restaurant</h2>
+          <input className={input} placeholder="Restaurant name" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
+          <div className="grid grid-cols-3 gap-3">
+            {meta.buildings.map((b) => (
+              <label key={b} className="block text-sm">
+                Walk from {b} (min)
+                <input
+                  className={input}
+                  type="number"
+                  min="1"
+                  required
+                  value={newR.walk[b] || ""}
+                  onChange={(e) => setNewR({ ...newR, walk: { ...newR.walk, [b]: e.target.value } })}
+                />
+              </label>
+            ))}
+          </div>
+          <button className={btn}>Add restaurant</button>
+        </form>
 
         <section className="space-y-3 rounded-xl bg-white p-4 shadow">
           <h2 className="text-xl font-semibold">Scan a menu</h2>

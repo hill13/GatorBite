@@ -26,6 +26,29 @@ export async function getRestaurants() {
   );
 }
 
+// Lightweight list for dropdowns: [{ id, name }]
+export async function listRestaurants() {
+  if (!usingFirestore) return restaurants.map(({ id, name }) => ({ id, name }));
+  const snap = await db.collection("restaurants").get();
+  return snap.docs.map((d) => ({ id: d.id, name: d.data().name }));
+}
+
+// New restaurants start with no menu items; items come from the photo scan.
+export async function addRestaurant({ name, walkTimes }) {
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "restaurant";
+  const doc = { name, walkTimes, prepTime: 5 };
+  if (!usingFirestore) {
+    if (restaurants.some((r) => r.id === id)) return null;
+    restaurants.push({ id, ...doc });
+    menuItems[id] = [];
+    return { id, name };
+  }
+  const ref = db.collection("restaurants").doc(id);
+  if ((await ref.get()).exists) return null;
+  await ref.set(doc);
+  return { id, name };
+}
+
 export async function saveItems(restaurantId, items) {
   if (!usingFirestore) {
     if (!menuItems[restaurantId]) return false;
@@ -51,6 +74,13 @@ export async function seed() {
     await ref.set(fields);
     for (const old of (await ref.collection("menuItems").get()).docs) await old.ref.delete();
     for (const item of menuItems[id] || []) await ref.collection("menuItems").add({ ...item, source: "seed" });
+  }
+  // remove restaurants that were added through the UI so the seed is a clean reset
+  const keep = new Set(restaurants.map((r) => r.id));
+  for (const d of (await db.collection("restaurants").get()).docs) {
+    if (keep.has(d.id)) continue;
+    for (const i of (await d.ref.collection("menuItems").get()).docs) await i.ref.delete();
+    await d.ref.delete();
   }
   console.log("Seeded", restaurants.length, "restaurants");
 }
