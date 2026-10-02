@@ -16,12 +16,13 @@ export const buildings = [
   "Cox Stadium & Gymnasium",
   "Gator Health Center",
   "Health & Social Sciences (HSS)",
+  "Business (BUS)",
 ];
 
 export const restaurants = [
-  { id: "cafe-rosso", name: "Cafe Rosso", walkTimes: { "Thornton Hall": 6, "SFSU Library": 6, "Mashouf Wellness Center": 5 , "Fine Arts (FA)": 3, "Humanities (HUM)": 2, "Marcus Hall (MH)": 7, "Creative Arts (CA)": 4, "Administration (ADM)": 9, "Cesar Chavez Student Center (CC)": 5, "Cox Stadium & Gymnasium": 12, "Gator Health Center": 11, "Health & Social Sciences (HSS)": 1}, prepTime: 5 },
-  { id: "carmelinas", name: "Carmelina's Cafe", walkTimes: { "Thornton Hall": 5, "SFSU Library": 6, "Mashouf Wellness Center": 13 , "Fine Arts (FA)": 5, "Humanities (HUM)": 4, "Marcus Hall (MH)": 9, "Creative Arts (CA)": 6, "Administration (ADM)": 11, "Cesar Chavez Student Center (CC)": 7, "Cox Stadium & Gymnasium": 14, "Gator Health Center": 13, "Health & Social Sciences (HSS)": 3}, prepTime: 5 },
-  { id: "taza", name: "Taza Smoothies and Wraps", walkTimes: { "Thornton Hall": 8, "SFSU Library": 8, "Mashouf Wellness Center": 5 , "Fine Arts (FA)": 4, "Humanities (HUM)": 3, "Marcus Hall (MH)": 8, "Creative Arts (CA)": 5, "Administration (ADM)": 10, "Cesar Chavez Student Center (CC)": 6, "Cox Stadium & Gymnasium": 13, "Gator Health Center": 12, "Health & Social Sciences (HSS)": 2}, prepTime: 5 },
+  { id: "cafe-rosso", name: "Cafe Rosso", walkTimes: { "Thornton Hall": 6, "SFSU Library": 6, "Mashouf Wellness Center": 5 , "Fine Arts (FA)": 3, "Humanities (HUM)": 2, "Marcus Hall (MH)": 7, "Creative Arts (CA)": 4, "Administration (ADM)": 9, "Cesar Chavez Student Center (CC)": 5, "Cox Stadium & Gymnasium": 12, "Gator Health Center": 11, "Health & Social Sciences (HSS)": 1, "Business (BUS)": 4}, prepTime: 5 },
+  { id: "carmelinas", name: "Carmelina's Cafe", walkTimes: { "Thornton Hall": 5, "SFSU Library": 6, "Mashouf Wellness Center": 13 , "Fine Arts (FA)": 5, "Humanities (HUM)": 4, "Marcus Hall (MH)": 9, "Creative Arts (CA)": 6, "Administration (ADM)": 11, "Cesar Chavez Student Center (CC)": 7, "Cox Stadium & Gymnasium": 14, "Gator Health Center": 13, "Health & Social Sciences (HSS)": 3, "Business (BUS)": 2}, prepTime: 5 },
+  { id: "taza", name: "Taza Smoothies and Wraps", walkTimes: { "Thornton Hall": 8, "SFSU Library": 8, "Mashouf Wellness Center": 5 , "Fine Arts (FA)": 4, "Humanities (HUM)": 3, "Marcus Hall (MH)": 8, "Creative Arts (CA)": 5, "Administration (ADM)": 10, "Cesar Chavez Student Center (CC)": 6, "Cox Stadium & Gymnasium": 13, "Gator Health Center": 12, "Health & Social Sciences (HSS)": 2, "Business (BUS)": 5}, prepTime: 5 },
 ];
 
 // item(name, price, tags): tags is a space-separated list of what the dish IS or CONTAINS:
