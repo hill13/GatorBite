@@ -2,35 +2,8 @@ import { useEffect, useState } from "react";
 import { getMeta, recommend, extract, save, addRestaurant, addBuilding } from "./api.js";
 import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
 
-const field =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ink-600 focus:ring-2 focus:ring-ink-100";
-const btnPrimary =
-  "inline-flex items-center justify-center rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50";
-const btnGold =
-  "inline-flex items-center justify-center rounded-lg bg-accent-400 px-5 py-2.5 text-sm font-semibold text-ink-900 shadow-sm transition hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50";
-
-const toBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result.split(",")[1]);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-
-const Card = ({ title, subtitle, id, children }) => (
-  <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-    {title && <h2 className="text-lg font-semibold text-ink-900">{title}</h2>}
-    {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
-    <div className={title ? "mt-4" : ""}>{children}</div>
-  </section>
-);
-
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
-    {children}
-  </label>
-);
+import { field, btnPrimary, btnGold, toBase64, Card, Field } from "./ui.jsx";
+import Schedule from "./Schedule.jsx";
 
 // walks: { [placeName]: minutes as typed } -> [{ [key]: placeName, minutes }] for the filled boxes only
 const toWalks = (walks, key) =>
@@ -336,6 +309,8 @@ export default function App() {
             )}
           </Card>
         )}
+
+        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} diets={form.diets} budget={form.budget} />}
 
         <div className="pt-2">
           <h2 className="text-xl font-bold text-ink-900">Make it yours</h2>

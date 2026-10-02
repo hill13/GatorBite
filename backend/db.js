@@ -102,6 +102,18 @@ export async function saveUserItems(uid, restaurantId, items) {
   await batch.commit();
 }
 
+// One schedule per user: users/{uid}/schedule/current = { classes: [...] }. Saving replaces the old one.
+export async function getSchedule(uid) {
+  if (!usingFirestore) return [];
+  const doc = await db.collection("users").doc(uid).collection("schedule").doc("current").get();
+  return doc.exists ? doc.data().classes || [] : [];
+}
+
+export async function saveSchedule(uid, classes) {
+  needFirestore();
+  await db.collection("users").doc(uid).collection("schedule").doc("current").set({ classes, updatedAt: FieldValue.serverTimestamp() });
+}
+
 // Seed script: `npm run seed` copies data.js into Firestore (shared places only; user data is left alone).
 export async function seed() {
   if (!usingFirestore) throw new Error("No Firebase credentials found");

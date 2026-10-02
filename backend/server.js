@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { extractMenu } from "./gemini.js";
+import { extractMenu, extractSchedule } from "./gemini.js";
 import { optionalUser, requireUser } from "./auth.js";
-import { getView, addUserRestaurant, addUserBuilding, saveUserItems } from "./db.js";
+import { getView, addUserRestaurant, addUserBuilding, saveUserItems, getSchedule, saveSchedule } from "./db.js";
 
 const app = express();
 app.use(cors());
@@ -76,25 +76,97 @@ const fits = (item, diet) => {
   }
 };
 
-// Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
-app.post("/api/recommendations", optionalUser, async (req, res) => {
-  const { building, destination, diets, budget, minutesUntilClass, restaurantIds } = req.body;
+// Ranking: filter by budget + diet, total = walk to food + prep + walk to class building.
+// Used by both search and the schedule planner. `minutes` is the time available.
+function rank(view, { building, destination, diets, budget, minutes, restaurantIds }) {
   const results = [];
-  for (const r of (await getView(req.user?.uid)).restaurants) {
+  for (const r of view.restaurants) {
     if (restaurantIds && !restaurantIds.includes(r.id)) continue;
     const walkTo = r.walkTimes[building];
     const walkToClass = r.walkTimes[destination || building];
     if (walkTo === undefined || walkToClass === undefined) continue;
     const total = walkTo + r.prepTime + walkToClass;
-    if (total > minutesUntilClass) continue;
+    if (total > minutes) continue;
     for (const item of r.items) {
       if (item.price > budget) continue;
       if (!(Array.isArray(diets) ? diets : []).every((d) => fits(item, d))) continue;
       results.push({ restaurant: r.name, ...item, totalMinutes: total });
     }
   }
-  results.sort((a, b) => a.totalMinutes - b.totalMinutes);
-  res.json(results);
+  return results.sort((a, b) => a.totalMinutes - b.totalMinutes || a.price - b.price);
+}
+
+app.post("/api/recommendations", optionalUser, async (req, res) => {
+  const { building, destination, diets, budget, minutesUntilClass, restaurantIds } = req.body;
+  res.json(rank(await getView(req.user?.uid), { building, destination, diets, budget, minutes: minutesUntilClass, restaurantIds }));
+});
+
+// ---- class schedule ----
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const EAT_MINUTES = 10; // time left to actually eat, on top of walk + prep
+const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+
+// Photo of a class schedule -> classes (not saved; the user reviews and maps buildings first)
+app.post("/api/schedule/extract", requireUser, async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+  if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
+  const v = await getView(req.user.uid);
+  res.json(await extractSchedule(imageBase64, mimeType, v.buildings));
+});
+
+app.get("/api/schedule", requireUser, async (req, res) => res.json({ classes: await getSchedule(req.user.uid) }));
+
+app.post("/api/schedule/save", requireUser, async (req, res) => {
+  const v = await getView(req.user.uid);
+  const classes = (Array.isArray(req.body.classes) ? req.body.classes : [])
+    .map((c) => ({
+      course: String(c.course || "Class").trim(),
+      day: c.day,
+      start: String(c.start || ""),
+      end: String(c.end || ""),
+      location: String(c.location || ""),
+      building: c.building,
+    }))
+    .filter((c) => DAYS.includes(c.day) && /^\d\d:\d\d$/.test(c.start) && /^\d\d:\d\d$/.test(c.end) && c.end > c.start && v.buildings.includes(c.building));
+  if (!classes.length) return res.status(400).json({ error: "Pick a building for at least one class" });
+  try {
+    await saveSchedule(req.user.uid, classes);
+    res.json({ saved: classes.length, classes });
+  } catch (err) {
+    console.error("save schedule failed:", err.message);
+    res.status(500).json({ error: "Could not save" });
+  }
+});
+
+// For each gap between consecutive classes on a day: the best 3 places (one dish each) that fit.
+app.post("/api/schedule/suggest", requireUser, async (req, res) => {
+  const { diets, budget } = req.body;
+  const [view, classes] = await Promise.all([getView(req.user.uid), getSchedule(req.user.uid)]);
+  const days = [];
+  for (const day of DAYS) {
+    const todays = classes.filter((c) => c.day === day).sort((a, b) => a.start.localeCompare(b.start));
+    const gaps = [];
+    for (let i = 0; i + 1 < todays.length; i++) {
+      const a = todays[i];
+      const b = todays[i + 1];
+      const minutes = toMin(b.start) - toMin(a.end);
+      if (minutes <= 0) continue;
+      // best 3 restaurants by trip time; for each, up to 2 real meals (dishes $6+, else whatever it has)
+      const byRestaurant = new Map();
+      for (const r of rank(view, { building: a.building, destination: b.building, diets, budget: Number(budget) || 1000, minutes: minutes - EAT_MINUTES })) {
+        if (!byRestaurant.has(r.restaurant)) byRestaurant.set(r.restaurant, { restaurant: r.restaurant, totalMinutes: r.totalMinutes, items: [] });
+        byRestaurant.get(r.restaurant).items.push(r);
+      }
+      const options = [...byRestaurant.values()].slice(0, 3).map((o) => {
+        const meals = o.items.filter((i) => i.price >= 6);
+        const dishes = (meals.length ? meals : o.items).sort((x, y) => y.price - x.price).slice(0, 2);
+        return { restaurant: o.restaurant, totalMinutes: o.totalMinutes, spare: minutes - o.totalMinutes, dishes: dishes.map((d) => ({ name: d.name, price: d.price })) };
+      });
+      gaps.push({ after: a.course, before: b.course, from: a.end, to: b.start, minutes, fromBuilding: a.building, toBuilding: b.building, options });
+    }
+    if (todays.length) days.push({ day, classCount: todays.length, gaps });
+  }
+  res.json({ eatMinutes: EAT_MINUTES, days });
 });
 
 // Photo -> Gemini -> structured items (does not save; the user confirms first)
