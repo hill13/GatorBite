@@ -2,14 +2,8 @@ import { useEffect, useState } from "react";
 import { getMeta, recommend, extract, save, addRestaurant, addBuilding } from "./api.js";
 import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
 
-import { field, btnPrimary, btnGold, toBase64, Card, Field } from "./ui.jsx";
+import { field, btnPrimary, btnGold, toBase64, Card, Field, fillWalks, AssumeField } from "./ui.jsx";
 import Schedule from "./Schedule.jsx";
-
-// walks: { [placeName]: minutes as typed } -> [{ [key]: placeName, minutes }] for the filled boxes only
-const toWalks = (walks, key) =>
-  Object.entries(walks)
-    .filter(([, m]) => m !== "" && m != null)
-    .map(([place, m]) => ({ [key]: place, minutes: Number(m) }));
 
 const DIETS = [
   ["vegetarian", "Vegetarian"],
@@ -34,8 +28,8 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [linkSent, setLinkSent] = useState(false);
 
-  const [newR, setNewR] = useState({ name: "", walks: {} });
-  const [newB, setNewB] = useState({ name: "", walks: {} });
+  const [newR, setNewR] = useState({ name: "", walks: {}, assume: "" });
+  const [newB, setNewB] = useState({ name: "", walks: {}, assume: "" });
   const [restaurantId, setRestaurantId] = useState("");
   const [file, setFile] = useState(null);
   const [items, setItems] = useState(null);
@@ -114,10 +108,10 @@ export default function App() {
     setError("");
     setMsg("");
     try {
-      const created = await addRestaurant({ name: newR.name.trim(), walks: toWalks(newR.walks, "building") });
+      const created = await addRestaurant({ name: newR.name.trim(), walks: fillWalks(newR.walks, "building", meta.buildings, newR.assume) });
       await loadMeta();
       setRestaurantId(created.id);
-      setNewR({ name: "", walks: {} });
+      setNewR({ name: "", walks: {}, assume: "" });
       setMsg(`Added ${created.name} (only you can see it). Select it under "Scan a menu" to add its items.`);
     } catch (err) {
       setError(err.message);
@@ -129,9 +123,9 @@ export default function App() {
     setError("");
     setMsg("");
     try {
-      const created = await addBuilding({ name: newB.name.trim(), walks: toWalks(newB.walks, "restaurantId") });
+      const created = await addBuilding({ name: newB.name.trim(), walks: fillWalks(newB.walks, "restaurantId", meta.restaurants.map((r) => r.id), newB.assume) });
       await loadMeta();
-      setNewB({ name: "", walks: {} });
+      setNewB({ name: "", walks: {}, assume: "" });
       setMsg(`Added ${created.name} (only you can see it). You can now pick it in the search above.`);
     } catch (err) {
       setError(err.message);
@@ -344,7 +338,7 @@ export default function App() {
           </Card>
         ) : (
           <>
-            <Card title="Add a restaurant" subtitle="Enter the walking minutes from the buildings you know. You only need one.">
+            <Card title="Add a restaurant" subtitle="Enter the walking minutes from the buildings you know, or one number to use for all of them.">
               <form onSubmit={submitRestaurant} className="space-y-4">
                 <Field label="Name">
                   <input className={field} placeholder="e.g. Campus Grill" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
@@ -356,11 +350,12 @@ export default function App() {
                     </Field>
                   ))}
                 </div>
+                <AssumeField value={newR.assume} onChange={(v) => setNewR({ ...newR, assume: v })} />
                 <button className={btnPrimary}>Add restaurant</button>
               </form>
             </Card>
 
-            <Card title="Add a building or class location" subtitle="Enter the walking minutes to the restaurants you know. You only need one.">
+            <Card title="Add a building or class location" subtitle="Enter the walking minutes to the restaurants you know, or one number to use for all of them.">
               <form onSubmit={submitBuilding} className="space-y-4">
                 <Field label="Name">
                   <input className={field} placeholder="e.g. Science Building" value={newB.name} onChange={(e) => setNewB({ ...newB, name: e.target.value })} required />
@@ -372,6 +367,7 @@ export default function App() {
                     </Field>
                   ))}
                 </div>
+                <AssumeField value={newB.assume} onChange={(v) => setNewB({ ...newB, assume: v })} />
                 <button className={btnPrimary}>Add building</button>
               </form>
             </Card>

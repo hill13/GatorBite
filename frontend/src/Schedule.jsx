@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { extractSchedule, getSchedule, saveSchedule, suggestSchedule, addBuilding } from "./api.js";
-import { field, btnPrimary, btnGold, toBase64, Card, Field } from "./ui.jsx";
+import { field, btnPrimary, btnGold, toBase64, Card, Field, fillWalks, AssumeField } from "./ui.jsx";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -74,9 +74,7 @@ export default function Schedule({ buildings, restaurants, diets, budget, onBuil
     setError("");
     try {
       const name = adding.name.trim();
-      const walks = Object.entries(adding.walks)
-        .filter(([, m]) => m !== "" && m != null)
-        .map(([restaurantId, m]) => ({ restaurantId, minutes: Number(m) }));
+      const walks = fillWalks(adding.walks, "restaurantId", restaurants.map((r) => r.id), adding.assume);
       const created = await addBuilding({ name, walks });
       await onBuildingAdded();
       // every class that was read as that building now maps to it
@@ -141,7 +139,7 @@ export default function Schedule({ buildings, restaurants, diets, budget, onBuil
                       <Field label="Building name">
                         <input className={field} value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} required />
                       </Field>
-                      <p className="text-xs text-slate-500">Walking minutes from this building to the restaurants you know. You only need one.</p>
+                      <p className="text-xs text-slate-500">Walking minutes from this building to the restaurants you know, or one number to use for all of them.</p>
                       <div className="grid gap-3 sm:grid-cols-3">
                         {restaurants.map((r) => (
                           <Field key={r.id} label={`To ${r.name}`}>
@@ -156,6 +154,7 @@ export default function Schedule({ buildings, restaurants, diets, budget, onBuil
                           </Field>
                         ))}
                       </div>
+                      <AssumeField value={adding.assume} onChange={(v) => setAdding({ ...adding, assume: v })} />
                       <div className="flex gap-2">
                         <button className={btnPrimary}>Add building</button>
                         <button type="button" onClick={() => setAdding(null)} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">Cancel</button>
@@ -165,7 +164,7 @@ export default function Schedule({ buildings, restaurants, diets, budget, onBuil
                     <button
                       type="button"
                       key={guess}
-                      onClick={() => setAdding({ guess, name: guess, walks: {} })}
+                      onClick={() => setAdding({ guess, name: guess, walks: {}, assume: "" })}
                       className="mr-2 rounded-full border border-ink-900 bg-white px-3.5 py-1.5 text-sm font-medium text-ink-900 hover:bg-ink-50"
                     >
                       + Add “{guess}” <span className="text-slate-500">({count} class{count !== 1 ? "es" : ""})</span>

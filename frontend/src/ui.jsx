@@ -28,3 +28,15 @@ export const Field = ({ label, children }) => (
   </label>
 );
 
+
+// Walking minutes for every place: the typed value, else the "assume this many for the rest" value.
+export const fillWalks = (walks, key, all, assume) =>
+  all
+    .map((p) => ({ [key]: p, minutes: Number(walks[p] !== undefined && walks[p] !== "" ? walks[p] : assume) }))
+    .filter((w) => w.minutes > 0);
+
+export const AssumeField = ({ value, onChange }) => (
+  <Field label="Not sure about the rest? Assume this many minutes">
+    <input className={field} type="number" min="1" placeholder="e.g. 7 (optional)" value={value} onChange={(e) => onChange(e.target.value)} />
+  </Field>
+);
