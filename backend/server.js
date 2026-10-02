@@ -62,9 +62,23 @@ app.post("/api/buildings", requireUser, async (req, res) => {
   }
 });
 
+// Does a dish fit one diet option? All selected options must fit. Unknown tags are never treated as safe.
+const fits = (item, diet) => {
+  switch (diet) {
+    case "vegetarian": return Boolean(item.vegetarian);
+    case "vegan": return Boolean(item.vegan);
+    case "halal": return !item.pork && !item.alcohol; // "halal-friendly": menus can't prove certification
+    case "no-pork": return !item.pork;
+    case "no-beef": return !item.beef;
+    case "gluten-free": return item.gluten === false;
+    case "nut-free": return item.nuts === false;
+    default: return true;
+  }
+};
+
 // Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
 app.post("/api/recommendations", optionalUser, async (req, res) => {
-  const { building, destination, diet, budget, minutesUntilClass, restaurantIds } = req.body;
+  const { building, destination, diets, budget, minutesUntilClass, restaurantIds } = req.body;
   const results = [];
   for (const r of (await getView(req.user?.uid)).restaurants) {
     if (restaurantIds && !restaurantIds.includes(r.id)) continue;
@@ -75,11 +89,7 @@ app.post("/api/recommendations", optionalUser, async (req, res) => {
     if (total > minutesUntilClass) continue;
     for (const item of r.items) {
       if (item.price > budget) continue;
-      if (diet === "vegetarian" && !item.vegetarian) continue;
-      if (diet === "vegan" && !item.vegan) continue;
-      if (diet === "halal" && (item.pork || item.alcohol)) continue; // "halal-friendly": menus can't prove certification
-      if (diet === "no-pork" && item.pork) continue;
-      if (diet === "no-beef" && item.beef) continue;
+      if (!(Array.isArray(diets) ? diets : []).every((d) => fits(item, d))) continue;
       results.push({ restaurant: r.name, ...item, totalMinutes: total });
     }
   }

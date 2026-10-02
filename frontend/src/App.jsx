@@ -38,9 +38,19 @@ const toWalks = (walks, key) =>
     .filter(([, m]) => m !== "" && m != null)
     .map(([place, m]) => ({ [key]: place, minutes: Number(m) }));
 
+const DIETS = [
+  ["vegetarian", "Vegetarian"],
+  ["vegan", "Vegan"],
+  ["halal", "Halal-friendly"],
+  ["no-pork", "No pork"],
+  ["no-beef", "No beef"],
+  ["gluten-free", "Gluten-free"],
+  ["nut-free", "Nut-free"],
+];
+
 export default function App() {
   const [meta, setMeta] = useState({ buildings: [], restaurants: [], shared: [], signedIn: false });
-  const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
+  const [form, setForm] = useState({ building: "", destination: "", diets: ["vegetarian"], budget: 12, minutesUntilClass: 25 });
   const [excluded, setExcluded] = useState([]);
   const [results, setResults] = useState(null);
   const [newNames, setNewNames] = useState([]);
@@ -235,26 +245,39 @@ export default function App() {
                 </select>
               </Field>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Diet">
-                <select className={field} value={form.diet} onChange={set("diet")}>
-                  <option value="vegetarian">Vegetarian</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="halal">Halal-friendly (no pork or alcohol)</option>
-                  <option value="no-pork">No pork</option>
-                  <option value="no-beef">No beef</option>
-                  <option value="any">Anything</option>
-                </select>
-                {form.diet === "halal" && (
-                  <p className="mt-1 text-xs text-slate-500">Based on menu ingredients. Menus don't show halal certification, so confirm with the restaurant.</p>
-                )}
-              </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Budget ($)">
                 <input className={field} type="number" min="1" value={form.budget} onChange={set("budget")} />
               </Field>
               <Field label="Minutes until class">
                 <input className={field} type="number" min="1" value={form.minutesUntilClass} onChange={set("minutesUntilClass")} />
               </Field>
+            </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Diet (pick any)</span>
+              <div className="flex flex-wrap gap-2">
+                {DIETS.map(([value, label]) => {
+                  const on = form.diets.includes(value);
+                  return (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => setForm({ ...form, diets: on ? form.diets.filter((d) => d !== value) : [...form.diets, value] })}
+                      aria-pressed={on}
+                      className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                        on ? "border-accent-500 bg-accent-100 text-ink-900" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.diets.some((d) => ["halal", "gluten-free", "nut-free"].includes(d)) && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Halal, gluten-free and nut-free are best guesses from menu text. Menus don't show certification or cross-contact, so check with the restaurant, especially for allergies.
+                </p>
+              )}
             </div>
             <div>
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Restaurants</span>
@@ -417,9 +440,9 @@ export default function App() {
                           <label className="flex items-center gap-1.5 text-xs text-slate-600">
                             <input type="checkbox" checked={it.vegan} onChange={(e) => editItem(i, "vegan", e.target.checked)} /> Vegan
                           </label>
-                          <div className="col-span-full flex gap-4 border-b border-slate-200 pb-2 text-xs text-slate-500">
+                          <div className="col-span-full flex flex-wrap gap-x-4 gap-y-1 border-b border-slate-200 pb-2 text-xs text-slate-500">
                             Contains:
-                            {["pork", "beef", "alcohol"].map((k) => (
+                            {["pork", "beef", "alcohol", "gluten", "nuts"].map((k) => (
                               <label key={k} className="flex items-center gap-1.5 capitalize">
                                 <input type="checkbox" checked={Boolean(it[k])} onChange={(e) => editItem(i, k, e.target.checked)} /> {k}
                               </label>
