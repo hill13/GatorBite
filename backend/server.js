@@ -95,7 +95,7 @@ function rank(view, { building, destination, diets, budget, minutes, restaurantI
       results.push({ restaurant: r.name, ...item, totalMinutes: total });
     }
   }
-  return results.sort((a, b) => a.totalMinutes - b.totalMinutes || a.price - b.price);
+  return results.sort((a, b) => a.totalMinutes - b.totalMinutes || b.price - a.price);
 }
 
 app.post("/api/recommendations", optionalUser, async (req, res) => {

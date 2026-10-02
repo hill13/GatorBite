@@ -1,85 +1,57 @@
 # GatorBite Architecture
 
-## Overview
-Students enter building, diet, budget, and minutes until class. GatorBite returns food options ranked by total time (walk to food + prep + walk to class). A student can upload a menu photo. Gemini extracts the items, the student confirms them, and they are saved to Firestore. The next search includes the new items.
+## What it does
+A student says where they are, where their next class is, how many minutes they have, their budget and diet. GatorBite returns food ranked by **total time = walk to the restaurant + prep + walk to class**. Gemini turns photos of menus and class schedules into structured data, so new dishes and eating windows appear without anyone typing a menu.
 
-**Demo loop:** Form → Search (2 results) → Upload photo → Gemini extracts → Confirm → Firestore write → Search again (3 results).
-
-## Diagram
+## Pieces
 ```
-React (Vite)  ──HTTP──▶  Express on Cloud Run  ──▶  Gemini Vision (extract)
-   form / results         /api/recommendations  ──▶  Firestore (read/write)
-   upload / confirm       /api/menus/extract
-                          /api/menus/save
+React site (Vercel)  ──HTTPS──▶  Express API (Render)  ──▶  Firestore   (shared + private data)
+ #/  #/plan  #/restaurants         /api/*                 └─▶  Gemini     (menu + schedule photos)
+        │                                                └─▶  Firebase Auth (verify sign-in tokens)
+        └── Firebase Auth (email link / Google) ─── ID token sent as `Authorization: Bearer ...`
 ```
+- **Frontend:** `frontend/` (Vite, React, Tailwind). Three pages with `#/` routes: Home (sign-in + search), Plan your day, Add a restaurant.
+- **Backend:** `backend/` (Node, Express). `server.js` routes, `db.js` Firestore access, `auth.js` token check, `gemini.js` Gemini calls.
+- **Hosting:** API on Render (`render.yaml`), site on Vercel. See `DEPLOY.md`.
 
-## Components
+## API
+| Endpoint | Auth | Does |
+|---|---|---|
+| `GET /api/meta` | optional | Buildings and restaurants this visitor can see (shared, plus their own if signed in). |
+| `POST /api/recommendations` | optional | Ranks dishes for `{building, destination, diets[], budget, minutesUntilClass, restaurantIds}`. |
+| `POST /api/restaurants` | required | Adds a private restaurant with walking minutes from at least one building. |
+| `POST /api/menus/extract` | required | Menu photo to dishes with diet tags (Gemini). Does not save. |
+| `POST /api/menus/save` | required | Saves the dishes the user confirmed, privately. |
+| `POST /api/schedule/extract` | required | Class schedule photo to classes, mapped to buildings (Gemini). Does not save. |
+| `GET/POST /api/schedule`, `/api/schedule/save` | required | Read or replace the saved schedule. |
+| `POST /api/schedule/suggest` | required | For each gap between classes, the best 3 restaurants that fit. |
 
-### Frontend (React + Vite)
-- **Search form:** building (3 options), diet (vegetarian only to start), budget ($), minutes until class.
-- **Results list:** restaurant, item, price, total time.
-- **Upload panel:** choose an image, show the extracted items as editable rows, then a Confirm button.
-- Config: `VITE_API_URL` and the Firebase config in `.env.local`.
-
-### Backend (Node/Express, Cloud Run)
-| Endpoint | Does |
-|---|---|
-| `POST /api/recommendations` | Body `{building, diet, budget, minutesUntilClass}`. Reads Firestore, filters, ranks, returns the list. |
-| `POST /api/menus/extract` | Body `{restaurantId, imageBase64, mimeType}`. Calls Gemini Vision and returns the items as JSON. Does not save. |
-| `POST /api/menus/save` | Body `{restaurantId, items[]}`. Writes the confirmed items to `menuItems` with `source: "gemini-scan"` and `confirmedAt`. |
-
-### Gemini
-- Called from the backend only. `GEMINI_API_KEY` is in env.
-- The prompt asks for JSON only: `[{ "name", "price", "vegetarian", "vegan" }]`.
-- The backend strips any code fences, parses the JSON, and checks the types before returning.
-- Gemini is the data pipeline here, not a chatbot: photo → structured data → Firestore → rankings.
-
-### Firestore
+## Data (Firestore)
 ```
-restaurants/{id}
-  name, walkTimes: { <building>: min }, walkTimeToClass: min, prepTime: min
-restaurants/{id}/menuItems/{id}
-  name, price, vegetarian, vegan, source, confirmedAt
+restaurants/{id}                     shared: name, walkTimes{building: min}, prepTime
+restaurants/{id}/menuItems/{id}      shared: name, price, vegetarian, vegan, pork, beef, alcohol, gluten, nuts
+users/{uid}/restaurants/{id}         private restaurant: name, prepTime
+users/{uid}/walks/{building__rid}    private walking time: building, restaurantId, minutes
+users/{uid}/items/{id}               private scanned dish (any restaurant, shared or private)
+users/{uid}/schedule/current         classes[]: course, day, start, end, building
 ```
-No transactions and no nested queries. Read each restaurant's items with one collection get.
+The 13 campus buildings and the seed data live in `backend/data.js`. `npm run seed` copies the shared part into Firestore.
 
-## Ranking
-```
-for each restaurant × item:
-  skip if item.price > budget
-  skip if diet == vegetarian and !item.vegetarian
-  total = walkTimes[building] + prepTime + walkTimeToClass
-  skip if total > minutesUntilClass
-sort ascending by total
-```
+## How the main loops work
+- **Search:** for each visible restaurant, `total = walkTimes[from] + prep + walkTimes[to]`. Skip it if the total exceeds the minutes. Keep dishes under budget that pass every selected diet. Sort by total time, then meals before sides.
+- **Menu scan:** photo, then Gemini returns JSON for every dish with tags. The backend cleans it. The user reviews and edits, then confirms, and it is saved to their private items. The next search includes it.
+- **Schedule:** photo, then Gemini returns classes and matches each to a building. The user fixes unmatched ones and saves. For each gap between two classes, the planner runs the same ranking from the first class's building to the next, with `gap minus 10 minutes to eat` as the time limit. It shows the top 3 restaurants with up to 2 real meals each.
 
-## Hardcoded Data
-3 buildings × 3 restaurants. Walk times are static, so they are seeded into Firestore once by a seed script.
+## Trust and safety choices
+- **Unknown is never safe.** A dish passes gluten-free or nut-free only if explicitly tagged clean. Gemini is told to answer "contains" for gluten, nuts, pork and beef when unsure.
+- **Human in the loop.** Every Gemini result is reviewed before it is saved.
+- **Labelled honestly.** Halal-friendly means no pork or alcohol. It is not a certification, and the app says to confirm with the restaurant.
+- **Login.** Email-link sign-in (proves an inbox) or Google. Allowed: `@sfsu.edu` plus `ALLOWED_EMAILS`. The server verifies the Firebase ID token on every write. Search is public.
+- **Private by default.** Added restaurants, scanned dishes and schedules are visible only to their owner.
+- **Secrets** live only in env vars (`GEMINI_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`) and git-ignored files.
 
-| Building | Restaurant A | Restaurant B | Restaurant C |
-|---|---|---|---|
-| TBD-1 | TBD min | TBD min | TBD min |
-| TBD-2 | TBD min | TBD min | TBD min |
-| TBD-3 | TBD min | TBD min | TBD min |
-
-Also TBD: restaurant names, `prepTime`, and the walk time from each restaurant to the demo class building. Seed 2 vegetarian items under the demo restaurant so the first search returns 2 results. The photo scan then adds the third.
-
-## Config
-`.env.local` (frontend) holds `VITE_API_URL` and the Firebase web config. Backend env holds `GEMINI_API_KEY` and the Firebase project credentials. No keys in code.
-
-## Fallbacks (cut in this order)
-1. Diet filters → vegetarian only
-2. Ranking → filter by budget, sort by time
-3. Restaurants → 2 instead of 3
-4. Firestore → localStorage + seeded data
-5. Cloud Run → local `npm start`, or a client-side Gemini call
-
-| Failure | Fix |
-|---|---|
-| Gemini down | Return a hardcoded sample extraction |
-| Firestore write fails | localStorage |
-| Cloud Run slow or broken | Run the backend locally |
-| Upload broken | Hardcoded base64 menu image |
-
-## Out of Scope
-Auth, tests, CI/CD, Docker, security hardening, monitoring, wait-time reporting, restaurant self-service menus, more diets.
+## Known limits
+- Walking times are hand-entered: Thornton Hall, SFSU Library and Mashouf were measured, the other 10 buildings are estimates. Gemini guesses were 2 to 3 times too low, so they are not used.
+- Prep time is a flat 5 minutes. Menus and tags for Carmelina's and Taza come from photos and are less certain than Rosso's.
+- Free-tier hosting: the API sleeps when idle and wakes in under a minute.
+- Demo-day switch: `AUTH_DISABLED=true` (API) and `VITE_AUTH_DISABLED=true` (site) turn the login off.
