@@ -27,6 +27,14 @@ export const menuItems = {
     { name: "Mac 'n Cheese & Garlic Bread", price: 7.95, vegetarian: true, vegan: false },
     { name: "Grilled Three Cheese", price: 9.5, vegetarian: true, vegan: false },
   ],
-  carmelinas: [{ name: "Caprese Sandwich", price: 10.5, vegetarian: true, vegan: false }],
+  carmelinas: [
+    // Real Carmelina's menu (individual items only; catering dozens and drinks skipped)
+    { name: "Hard Boiled Egg", price: 1.5, vegetarian: true, vegan: false },
+    { name: "Fruit Salad Cup", price: 5.25, vegetarian: true, vegan: true },
+    { name: "Smoked Salmon Bagel", price: 6.5, vegetarian: false, vegan: false },
+    { name: "Dr. Lindsay Bagel", price: 5.75, vegetarian: false, vegan: false },
+    { name: "M.C.B Bagel", price: 5.75, vegetarian: false, vegan: false },
+    { name: "B.L.T Bagel", price: 5.75, vegetarian: false, vegan: false },
+  ],
   taza: [{ name: "Chicken Wrap", price: 8, vegetarian: false, vegan: false }],
 };
