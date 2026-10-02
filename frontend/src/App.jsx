@@ -3,11 +3,11 @@ import { getMeta, recommend, extract, save, addRestaurant, addBuilding } from ".
 import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
 
 const field =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ink-600 focus:ring-2 focus:ring-ink-100";
 const btnPrimary =
-  "inline-flex items-center justify-center rounded-lg bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50";
 const btnGold =
-  "inline-flex items-center justify-center rounded-lg bg-gold-400 px-5 py-2.5 text-sm font-semibold text-brand-900 shadow-sm transition hover:bg-gold-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center rounded-lg bg-accent-400 px-5 py-2.5 text-sm font-semibold text-ink-900 shadow-sm transition hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50";
 
 const toBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -19,7 +19,7 @@ const toBase64 = (file) =>
 
 const Card = ({ title, subtitle, id, children }) => (
   <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-    {title && <h2 className="text-lg font-semibold text-brand-900">{title}</h2>}
+    {title && <h2 className="text-lg font-semibold text-ink-900">{title}</h2>}
     {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
     <div className={title ? "mt-4" : ""}>{children}</div>
   </section>
@@ -190,30 +190,30 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-sans">
-      <header className="bg-brand-900 text-white">
+      <header className="bg-ink-900 text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-400 text-lg font-extrabold text-brand-900">G</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-400 text-lg font-extrabold text-ink-900">G</div>
             <div>
               <div className="text-lg font-bold leading-tight tracking-tight">GatorBite</div>
-              <div className="text-xs text-brand-100">Eat well. Make it to class.</div>
+              <div className="text-xs text-ink-100">Eat well. Make it to class.</div>
             </div>
           </div>
           {!authDisabled &&
             (user ? (
               <div className="flex items-center gap-3 text-sm">
-                <span className="hidden text-brand-100 sm:inline">{user.email}</span>
+                <span className="hidden text-ink-100 sm:inline">{user.email}</span>
                 <button onClick={logOut} className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">Sign out</button>
               </div>
             ) : (
-              <a href="#account" className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-900 shadow-sm hover:bg-brand-50">Sign in</a>
+              <a href="#account" className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-ink-900 shadow-sm hover:bg-ink-50">Sign in</a>
             ))}
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-brand-900 sm:text-4xl">What can I eat before class?</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">What can I eat before class?</h1>
           <p className="mt-2 max-w-xl text-slate-600">
             Tell us where you are, where you're headed and how long you have. We rank food by total time: walk there, prep, and the walk to class.
           </p>
@@ -262,11 +262,11 @@ export default function App() {
                       onClick={() => toggleRestaurant(r.id)}
                       aria-pressed={on}
                       className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                        on ? "border-brand-900 bg-brand-900 text-white" : "border-slate-300 bg-white text-slate-500 line-through hover:border-slate-400"
+                        on ? "border-ink-900 bg-ink-900 text-white" : "border-slate-300 bg-white text-slate-500 line-through hover:border-slate-400"
                       }`}
                     >
                       {r.name}
-                      {r.mine && <span className="ml-1.5 text-[10px] font-bold uppercase text-gold-400">yours</span>}
+                      {r.mine && <span className="ml-1.5 text-[10px] font-bold uppercase text-accent-400">yours</span>}
                     </button>
                   );
                 })}
@@ -291,15 +291,15 @@ export default function App() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-slate-900">{r.name}</span>
                         {newNames.includes(r.name) && r.source === "gemini-scan" && (
-                          <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-900 ring-1 ring-gold-400">New</span>
+                          <span className="rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink-900 ring-1 ring-accent-400">New</span>
                         )}
-                        {r.vegan && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Vegan</span>}
+                        {r.vegan && <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-700">Vegan</span>}
                       </div>
                       <div className="text-sm text-slate-500">{r.restaurant} · ${r.price.toFixed(2)}</div>
                     </div>
-                    <div className="shrink-0 rounded-lg bg-brand-50 px-3 py-1.5 text-center">
-                      <div className="text-lg font-bold leading-none text-brand-900">{r.totalMinutes}</div>
-                      <div className="text-[10px] font-medium uppercase tracking-wide text-brand-600">min</div>
+                    <div className="shrink-0 rounded-lg bg-ink-50 px-3 py-1.5 text-center">
+                      <div className="text-lg font-bold leading-none text-ink-900">{r.totalMinutes}</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-ink-600">min</div>
                     </div>
                   </li>
                 ))}
@@ -309,21 +309,21 @@ export default function App() {
         )}
 
         <div className="pt-2">
-          <h2 className="text-xl font-bold text-brand-900">Make it yours</h2>
+          <h2 className="text-xl font-bold text-ink-900">Make it yours</h2>
           <p className="text-sm text-slate-500">Add your own buildings, restaurants and menus. Only you can see what you add.</p>
         </div>
 
-        {msg && <p className="text-sm font-medium text-emerald-700">{msg}</p>}
+        {msg && <p className="text-sm font-medium text-ink-700">{msg}</p>}
 
         {!signedIn ? (
           <Card id="account" title="Sign in to add your own places" subtitle="Everyone shares the places below. Anything you add is only visible to you.">
-            <p className="mb-4 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-900">
+            <p className="mb-4 rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-900">
               These {meta.shared.length} places are already here for everyone: <strong>{meta.shared.join(", ")}</strong>. To add more, sign in. New places are saved for your account only.
             </p>
             {!authConfigured ? (
               <p className="text-sm text-slate-500">Login isn't configured on this build yet.</p>
             ) : linkSent ? (
-              <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <p className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-900">
                 Check your inbox. We sent a sign-in link to <strong>{email}</strong>. Open it on this device. If you don't see it, check your spam folder.
               </p>
             ) : (
@@ -333,7 +333,7 @@ export default function App() {
               </form>
             )}
             {authConfigured && !linkSent && (
-              <button onClick={handleGoogle} className="mt-3 text-xs font-medium text-brand-600 underline hover:text-brand-900">
+              <button onClick={handleGoogle} className="mt-3 text-xs font-medium text-ink-600 underline hover:text-ink-900">
                 Approved Google account? Continue with Google
               </button>
             )}
@@ -385,7 +385,7 @@ export default function App() {
                       type="file"
                       accept="image/*"
                       onChange={(e) => setFile(e.target.files[0])}
-                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-900 hover:file:bg-brand-100"
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-ink-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-900 hover:file:bg-ink-100"
                     />
                   </Field>
                 </div>
