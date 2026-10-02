@@ -22,6 +22,7 @@ export default function App() {
   const [restaurantId, setRestaurantId] = useState("");
   const [file, setFile] = useState(null);
   const [items, setItems] = useState(null);
+  const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -59,6 +60,7 @@ export default function App() {
     try {
       const out = await extract({ restaurantId, imageBase64: await toBase64(file), mimeType: file.type });
       setItems(out.items);
+      setSource(out.source);
     } catch (err) {
       setError(err.message);
     }
@@ -154,7 +156,9 @@ export default function App() {
 
           {items && (
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">Check these, edit if needed, then confirm.</p>
+              <p className="text-sm text-gray-600">
+                {source === "sample" ? "⚠️ Sample data (Gemini unavailable). " : "Extracted by Gemini. "}Check these, edit if needed, then confirm.
+              </p>
               {items.map((it, i) => (
                 <div key={i} className="grid grid-cols-[1fr_5rem_auto_auto] items-center gap-2">
                   <input className={input} value={it.name} onChange={(e) => editItem(i, "name", e.target.value)} />

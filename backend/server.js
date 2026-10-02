@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { extractMenu } from "./gemini.js";
 import { restaurants, menuItems, buildings, destination } from "./data.js";
 
 const app = express();
@@ -33,11 +34,11 @@ app.post("/api/recommendations", (req, res) => {
   res.json(results);
 });
 
-// STUB: swapped for Gemini on feat/gemini-extract
-app.post("/api/menus/extract", (_req, res) => {
-  res.json({
-    items: [{ name: "Veggie Burrito", price: 8.99, vegetarian: true, vegan: false }],
-  });
+// Photo -> Gemini -> structured items (does not save; the user confirms first)
+app.post("/api/menus/extract", async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+  if (!imageBase64) return res.status(400).json({ error: "imageBase64 required" });
+  res.json(await extractMenu(imageBase64, mimeType));
 });
 
 // STUB: swapped for Firestore on feat/firestore
