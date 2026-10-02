@@ -6,7 +6,7 @@ const PROMPT = `You are reading a photo of a restaurant menu.
 Return ONLY a JSON array. Each element: {"name": string, "price": number, "vegetarian": boolean, "vegan": boolean}.
 - price is a plain number in dollars (no $ sign). Skip items with no price.
 - vegetarian/vegan: true only if clearly meatless/plant-based from the name or description.
-- Return at most 8 items. No commentary.`;
+- Include EVERY meal or dish that has a price (up to 60). Skip add-ons, extras, toppings, condiments and drinks. No commentary.`;
 
 // Used when no API key is set or Gemini fails, so the demo never breaks.
 export const SAMPLE_ITEMS = [
