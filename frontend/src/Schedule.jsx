@@ -79,8 +79,8 @@ export default function Schedule({ buildings, diets, budget }) {
 
   return (
     <Card
-      title="Plan my day"
-      subtitle="Upload a photo of your class schedule. We find the gaps between classes and suggest where to eat, using your places, diet and budget above."
+      title="Your class schedule"
+      subtitle="Upload a photo of your schedule, check the buildings, and save it. Suggestions use the diet and budget above."
     >
       <div className="space-y-5">
         {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}

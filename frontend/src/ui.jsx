@@ -40,3 +40,50 @@ export const AssumeField = ({ value, onChange }) => (
     <input className={field} type="number" min="1" placeholder="e.g. 7 (optional)" value={value} onChange={(e) => onChange(e.target.value)} />
   </Field>
 );
+
+export const DIETS = [
+  ["vegetarian", "Vegetarian"],
+  ["vegan", "Vegan"],
+  ["halal", "Halal-friendly"],
+  ["no-pork", "No pork"],
+  ["no-beef", "No beef"],
+  ["gluten-free", "Gluten-free"],
+  ["nut-free", "Nut-free"],
+];
+
+// Combinable diet chips. diets: string[]; onChange(newList)
+export const DietChips = ({ diets, onChange }) => (
+  <div>
+    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Diet (pick any)</span>
+    <div className="flex flex-wrap gap-2">
+      {DIETS.map(([value, label]) => {
+        const on = diets.includes(value);
+        return (
+          <button
+            type="button"
+            key={value}
+            onClick={() => onChange(on ? diets.filter((d) => d !== value) : [...diets, value])}
+            aria-pressed={on}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+              on ? "border-accent-500 bg-accent-100 text-ink-900" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+    {diets.some((d) => ["halal", "gluten-free", "nut-free"].includes(d)) && (
+      <p className="mt-2 text-xs text-slate-500">
+        Halal, gluten-free and nut-free are best guesses from menu text. Menus don't show certification or cross-contact, so check with the restaurant, especially for allergies.
+      </p>
+    )}
+  </div>
+);
+
+// Shown on pages that need an account
+export const SignInGate = ({ what }) => (
+  <Card title="Sign in first" subtitle={`You need an account to ${what}.`}>
+    <a href="#/" className="inline-flex rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink-700">Go to the home page to sign in</a>
+  </Card>
+);

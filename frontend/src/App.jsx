@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
-import { getMeta, recommend, extract, save, addRestaurant } from "./api.js";
-import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled, authConfigured } from "./auth.js";
+import { getMeta, recommend } from "./api.js";
+import { watchUser, sendLink, completeEmailLink, signInWithGoogle, logOut, authDisabled } from "./auth.js";
+import Home from "./pages/Home.jsx";
+import Plan from "./pages/Plan.jsx";
+import Restaurants from "./pages/Restaurants.jsx";
 
-import { field, btnPrimary, btnGold, toBase64, Card, Field, fillWalks, AssumeField } from "./ui.jsx";
-import Schedule from "./Schedule.jsx";
-
-const DIETS = [
-  ["vegetarian", "Vegetarian"],
-  ["vegan", "Vegan"],
-  ["halal", "Halal-friendly"],
-  ["no-pork", "No pork"],
-  ["no-beef", "No beef"],
-  ["gluten-free", "Gluten-free"],
-  ["nut-free", "Nut-free"],
+// Pages use #/ addresses, so a static host needs no extra routing setup.
+const PAGES = [
+  ["#/", "Home"],
+  ["#/plan", "Plan your day"],
+  ["#/restaurants", "Add a restaurant"],
 ];
+const currentHash = () => (typeof window === "undefined" ? "#/" : window.location.hash || "#/");
 
 export default function App() {
+  const [route, setRoute] = useState(currentHash());
   const [meta, setMeta] = useState({ buildings: [], restaurants: [], shared: [], signedIn: false });
   const [form, setForm] = useState({ building: "", destination: "", diets: ["vegetarian"], budget: 12, minutesUntilClass: 25 });
   const [excluded, setExcluded] = useState([]);
@@ -28,13 +27,14 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [linkSent, setLinkSent] = useState(false);
 
-  const [newR, setNewR] = useState({ name: "", walks: {}, assume: "" });
-  const [restaurantId, setRestaurantId] = useState("");
-  const [file, setFile] = useState(null);
-  const [items, setItems] = useState(null);
-  const [source, setSource] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    const onHash = () => {
+      setRoute(currentHash());
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     completeEmailLink().catch((err) => setError(err.message));
@@ -50,7 +50,6 @@ export default function App() {
           building: m.buildings.includes(f.building) ? f.building : m.buildings[0],
           destination: m.buildings.includes(f.destination) ? f.destination : m.buildings[0],
         }));
-        setRestaurantId((id) => (m.restaurants.some((r) => r.id === id) ? id : m.restaurants[0]?.id));
         return m;
       })
       .catch(() => setError("Can't reach the backend. Is it running?"));
@@ -62,27 +61,28 @@ export default function App() {
     setExcluded([]);
   }, [user]);
 
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-  const toggleRestaurant = (id) => setExcluded(excluded.includes(id) ? excluded.filter((x) => x !== id) : [...excluded, id]);
-
-  const handleSendLink = async (e) => {
-    e.preventDefault();
-    setError("");
-    try {
-      await sendLink(email.trim());
-      setLinkSent(true);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleGoogle = async () => {
-    setError("");
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      if (err.code !== "auth/popup-closed-by-user") setError(err.message);
-    }
+  const login = {
+    email,
+    setEmail,
+    linkSent,
+    onSendLink: async (e) => {
+      e.preventDefault();
+      setError("");
+      try {
+        await sendLink(email.trim());
+        setLinkSent(true);
+      } catch (err) {
+        setError(err.message);
+      }
+    },
+    onGoogle: async () => {
+      setError("");
+      try {
+        await signInWithGoogle();
+      } catch (err) {
+        if (err.code !== "auth/popup-closed-by-user") setError(err.message);
+      }
+    },
   };
 
   const search = async (e) => {
@@ -102,301 +102,61 @@ export default function App() {
     }
   };
 
-  const submitRestaurant = async (e) => {
-    e.preventDefault();
-    setError("");
-    setMsg("");
-    try {
-      const created = await addRestaurant({ name: newR.name.trim(), walks: fillWalks(newR.walks, "building", meta.buildings, newR.assume) });
-      await loadMeta();
-      setRestaurantId(created.id);
-      setNewR({ name: "", walks: {}, assume: "" });
-      setMsg(`Added ${created.name} (only you can see it). Select it under "Scan a menu" to add its items.`);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const scan = async () => {
-    setBusy(true);
-    setMsg("");
-    setError("");
-    try {
-      const out = await extract({ restaurantId, imageBase64: await toBase64(file), mimeType: file.type });
-      setItems(out.items);
-      setSource(out.source);
-    } catch (err) {
-      setError(err.message);
-    }
-    setBusy(false);
-  };
-
-  const editItem = (i, k, v) => setItems(items.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
-  const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
-
-  const confirm = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      await save({ restaurantId, items: items.map((it) => ({ ...it, price: Number(it.price) })) });
-      setNewNames(items.map((it) => it.name));
-      setMsg(`Saved ${items.length} item${items.length !== 1 ? "s" : ""} to your menus. Search again to see them.`);
-      await loadMeta();
-      setItems(null);
-      setFile(null);
-    } catch (err) {
-      setError(err.message);
-    }
-    setBusy(false);
-  };
+  const page = route.startsWith("#/plan") ? "#/plan" : route.startsWith("#/restaurants") ? "#/restaurants" : "#/";
 
   return (
     <div className="min-h-screen font-sans">
       <header className="bg-ink-900 text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
+          <a href="#/" className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-400 text-lg font-extrabold text-ink-900">G</div>
             <div>
               <div className="text-lg font-bold leading-tight tracking-tight">GatorBite</div>
               <div className="text-xs text-ink-100">Eat well. Make it to class.</div>
             </div>
-          </div>
-          {!authDisabled &&
-            (user ? (
-              <div className="flex items-center gap-3 text-sm">
-                <span className="hidden text-ink-100 sm:inline">{user.email}</span>
-                <button onClick={logOut} className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">Sign out</button>
-              </div>
-            ) : (
-              <a href="#account" className="rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-ink-900 shadow-sm hover:bg-ink-50">Sign in</a>
-            ))}
+          </a>
+          {!authDisabled && user && (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="hidden text-ink-100 sm:inline">{user.email}</span>
+              <button onClick={logOut} className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">Sign out</button>
+            </div>
+          )}
         </div>
+        <nav className="mx-auto flex max-w-3xl gap-1 px-4 sm:px-6" aria-label="Pages">
+          {PAGES.map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              aria-current={page === href ? "page" : undefined}
+              className={`border-b-2 px-3 py-2.5 text-sm font-semibold transition ${
+                page === href ? "border-accent-400 text-white" : "border-transparent text-ink-100 hover:text-white"
+              }`}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">What can I eat before class?</h1>
-          <p className="mt-2 max-w-xl text-slate-600">
-            Tell us where you are, where you're headed and how long you have. We rank food by total time: walk there, prep, and the walk to class.
-          </p>
-        </div>
-
         {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
 
-        <Card>
-          <form onSubmit={search} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="I'm at">
-                <select className={field} value={form.building} onChange={set("building")}>
-                  {meta.buildings.map((b) => <option key={b}>{b}</option>)}
-                </select>
-              </Field>
-              <Field label="My next class is at">
-                <select className={field} value={form.destination} onChange={set("destination")}>
-                  {meta.buildings.map((b) => <option key={b}>{b}</option>)}
-                </select>
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Budget ($)">
-                <input className={field} type="number" min="1" value={form.budget} onChange={set("budget")} />
-              </Field>
-              <Field label="Minutes until class">
-                <input className={field} type="number" min="1" value={form.minutesUntilClass} onChange={set("minutesUntilClass")} />
-              </Field>
-            </div>
-            <div>
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Diet (pick any)</span>
-              <div className="flex flex-wrap gap-2">
-                {DIETS.map(([value, label]) => {
-                  const on = form.diets.includes(value);
-                  return (
-                    <button
-                      type="button"
-                      key={value}
-                      onClick={() => setForm({ ...form, diets: on ? form.diets.filter((d) => d !== value) : [...form.diets, value] })}
-                      aria-pressed={on}
-                      className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                        on ? "border-accent-500 bg-accent-100 text-ink-900" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              {form.diets.some((d) => ["halal", "gluten-free", "nut-free"].includes(d)) && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Halal, gluten-free and nut-free are best guesses from menu text. Menus don't show certification or cross-contact, so check with the restaurant, especially for allergies.
-                </p>
-              )}
-            </div>
-            <div>
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Restaurants</span>
-              <div className="flex flex-wrap gap-2">
-                {meta.restaurants.map((r) => {
-                  const on = !excluded.includes(r.id);
-                  return (
-                    <button
-                      type="button"
-                      key={r.id}
-                      onClick={() => toggleRestaurant(r.id)}
-                      aria-pressed={on}
-                      className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                        on ? "border-ink-900 bg-ink-900 text-white" : "border-slate-300 bg-white text-slate-500 line-through hover:border-slate-400"
-                      }`}
-                    >
-                      {r.name}
-                      {r.mine && <span className="ml-1.5 text-[10px] font-bold uppercase text-accent-400">yours</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <button className={btnGold} disabled={excluded.length === meta.restaurants.length}>Find food</button>
-          </form>
-        </Card>
-
-        {results && (
-          <Card
-            title={`${results.length} option${results.length !== 1 ? "s" : ""} that fit`}
-            subtitle={results.length ? "Fastest first. Time is walk there + prep + walk to class." : undefined}
-          >
-            {results.length === 0 ? (
-              <p className="text-slate-500">Nothing fits. Try more time, a higher budget, or turn a restaurant back on. </p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {results.map((r, i) => (
-                  <li key={i} className="flex items-center justify-between gap-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{r.name}</span>
-                        {newNames.includes(r.name) && r.source === "gemini-scan" && (
-                          <span className="rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink-900 ring-1 ring-accent-400">New</span>
-                        )}
-                        {r.vegan && <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-700">Vegan</span>}
-                      </div>
-                      <div className="text-sm text-slate-500">{r.restaurant} · ${r.price.toFixed(2)}</div>
-                    </div>
-                    <div className="shrink-0 rounded-lg bg-ink-50 px-3 py-1.5 text-center">
-                      <div className="text-lg font-bold leading-none text-ink-900">{r.totalMinutes}</div>
-                      <div className="text-[10px] font-medium uppercase tracking-wide text-ink-600">min</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+        {page === "#/" && (
+          <Home
+            meta={meta}
+            form={form}
+            setForm={setForm}
+            excluded={excluded}
+            setExcluded={setExcluded}
+            results={results}
+            newNames={newNames}
+            onSearch={search}
+            signedIn={signedIn}
+            login={login}
+          />
         )}
-
-        {signedIn && <Schedule key={user?.uid || "demo"} buildings={meta.buildings} diets={form.diets} budget={form.budget} />}
-
-        <div className="pt-2">
-          <h2 className="text-xl font-bold text-ink-900">Make it yours</h2>
-          <p className="text-sm text-slate-500">Add your own restaurants and menus. Only you can see what you add.</p>
-        </div>
-
-        {msg && <p className="text-sm font-medium text-ink-700">{msg}</p>}
-
-        {!signedIn ? (
-          <Card id="account" title="Sign in to add your own places" subtitle="Everyone shares the places below. Anything you add is only visible to you.">
-            <p className="mb-4 rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-900">
-              These {meta.shared.length} places are already here for everyone: <strong>{meta.shared.join(", ")}</strong>. To add more, sign in. New places are saved for your account only.
-            </p>
-            {!authConfigured ? (
-              <p className="text-sm text-slate-500">Login isn't configured on this build yet.</p>
-            ) : linkSent ? (
-              <p className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-900">
-                Check your inbox. We sent a sign-in link to <strong>{email}</strong>. Open it on this device. If you don't see it, check your spam folder.
-              </p>
-            ) : (
-              <form onSubmit={handleSendLink} className="flex flex-col gap-3 sm:flex-row">
-                <input className={field} type="email" required placeholder="you@sfsu.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <button className={btnPrimary}>Email me a sign-in link</button>
-              </form>
-            )}
-            {authConfigured && !linkSent && (
-              <button onClick={handleGoogle} className="mt-3 text-xs font-medium text-ink-600 underline hover:text-ink-900">
-                Approved Google account? Continue with Google
-              </button>
-            )}
-          </Card>
-        ) : (
-          <>
-            <Card title="Add a restaurant" subtitle="Enter the walking minutes from the buildings you know, or one number to use for all of them.">
-              <form onSubmit={submitRestaurant} className="space-y-4">
-                <Field label="Name">
-                  <input className={field} placeholder="e.g. Campus Grill" value={newR.name} onChange={(e) => setNewR({ ...newR, name: e.target.value })} required />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {meta.buildings.map((b) => (
-                    <Field key={b} label={`From ${b}`}>
-                      <input className={field} type="number" min="1" placeholder="minutes (optional)" value={newR.walks[b] ?? ""} onChange={(e) => setNewR({ ...newR, walks: { ...newR.walks, [b]: e.target.value } })} />
-                    </Field>
-                  ))}
-                </div>
-                <AssumeField value={newR.assume} onChange={(v) => setNewR({ ...newR, assume: v })} />
-                <button className={btnPrimary}>Add restaurant</button>
-              </form>
-            </Card>
-
-            <Card title="Scan a menu" subtitle="Pick a restaurant, upload a clear photo, and review what Gemini finds. Saved items are only visible to you.">
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Restaurant">
-                    <select className={field} value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)}>
-                      {meta.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}{r.mine ? " (yours)" : ""}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Menu photo">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setFile(e.target.files[0])}
-                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-ink-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-900 hover:file:bg-ink-100"
-                    />
-                  </Field>
-                </div>
-                <button className={btnPrimary} disabled={!file || busy} onClick={scan}>
-                  {busy && !items ? "Reading menu…" : "Extract with Gemini"}
-                </button>
-
-                {items && (
-                  <div className="space-y-3 rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">
-                      {source === "sample" ? "⚠️ Sample data (Gemini unavailable). " : `Gemini found ${items.length} item${items.length !== 1 ? "s" : ""}. `}
-                      Check names, prices and diet tags, then confirm.
-                    </p>
-                    <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
-                      {items.map((it, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_5.5rem_auto] items-center gap-2 sm:grid-cols-[1fr_5.5rem_auto_auto_auto]">
-                          <input className={field} value={it.name} onChange={(e) => editItem(i, "name", e.target.value)} />
-                          <input className={field} type="number" step="0.01" value={it.price} onChange={(e) => editItem(i, "price", e.target.value)} />
-                          <button type="button" onClick={() => removeItem(i)} aria-label={`Remove ${it.name}`} className="rounded-lg px-2 py-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:order-last">✕</button>
-                          <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <input type="checkbox" checked={it.vegetarian} onChange={(e) => editItem(i, "vegetarian", e.target.checked)} /> Veg
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <input type="checkbox" checked={it.vegan} onChange={(e) => editItem(i, "vegan", e.target.checked)} /> Vegan
-                          </label>
-                          <div className="col-span-full flex flex-wrap gap-x-4 gap-y-1 border-b border-slate-200 pb-2 text-xs text-slate-500">
-                            Contains:
-                            {["pork", "beef", "alcohol", "gluten", "nuts"].map((k) => (
-                              <label key={k} className="flex items-center gap-1.5 capitalize">
-                                <input type="checkbox" checked={Boolean(it[k])} onChange={(e) => editItem(i, k, e.target.checked)} /> {k}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <button className={btnGold} disabled={busy || !items.length} onClick={confirm}>Confirm &amp; add to my menu</button>
-                  </div>
-                )}
-              </div>
-            </Card>
-          </>
-        )}
+        {page === "#/plan" && <Plan meta={meta} form={form} setForm={setForm} signedIn={signedIn} uid={user?.uid} />}
+        {page === "#/restaurants" && <Restaurants meta={meta} signedIn={signedIn} onChanged={loadMeta} onSaved={setNewNames} />}
       </main>
 
       <footer className="mx-auto max-w-3xl px-4 pb-10 pt-2 text-xs text-slate-400 sm:px-6">
