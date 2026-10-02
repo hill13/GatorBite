@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { extractMenu } from "./gemini.js";
-import { restaurants, buildings, destination } from "./data.js";
+import { restaurants, buildings } from "./data.js";
 import { getRestaurants, saveItems } from "./db.js";
 
 const app = express();
@@ -12,17 +12,18 @@ app.use(express.json({ limit: "10mb" }));
 app.get("/", (_req, res) => res.send("GatorBite API ok"));
 
 app.get("/api/meta", (_req, res) =>
-  res.json({ buildings, destination, restaurants: restaurants.map(({ id, name }) => ({ id, name })) })
+  res.json({ buildings, restaurants: restaurants.map(({ id, name }) => ({ id, name })) })
 );
 
-// Ranking: filter by budget + diet, total = walk to food + prep + walk to class
+// Ranking: filter by budget + diet, total = walk to food + prep + walk to class building
 app.post("/api/recommendations", async (req, res) => {
-  const { building, diet, budget, minutesUntilClass } = req.body;
+  const { building, destination, diet, budget, minutesUntilClass } = req.body;
   const results = [];
   for (const r of await getRestaurants()) {
     const walkTo = r.walkTimes[building];
-    if (walkTo === undefined) continue;
-    const total = walkTo + r.prepTime + r.walkTimeToClass;
+    const walkToClass = r.walkTimes[destination || building];
+    if (walkTo === undefined || walkToClass === undefined) continue;
+    const total = walkTo + r.prepTime + walkToClass;
     if (total > minutesUntilClass) continue;
     for (const item of r.items) {
       if (item.price > budget) continue;

@@ -14,7 +14,7 @@ if (usingFirestore) {
 }
 console.log(usingFirestore ? "Storage: Firestore" : "Storage: in-memory (no serviceAccountKey.json)");
 
-// Returns [{ id, name, walkTimes, prepTime, walkTimeToClass, items: [...] }]
+// Returns [{ id, name, walkTimes, prepTime, items: [...] }]
 export async function getRestaurants() {
   if (!usingFirestore) return restaurants.map((r) => ({ ...r, items: menuItems[r.id] || [] }));
   const snap = await db.collection("restaurants").get();

@@ -13,8 +13,8 @@ const toBase64 = (file) =>
   });
 
 export default function App() {
-  const [meta, setMeta] = useState({ buildings: [], restaurants: [], destination: "" });
-  const [form, setForm] = useState({ building: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
+  const [meta, setMeta] = useState({ buildings: [], restaurants: [] });
+  const [form, setForm] = useState({ building: "", destination: "", diet: "vegetarian", budget: 12, minutesUntilClass: 25 });
   const [results, setResults] = useState(null);
   const [newNames, setNewNames] = useState([]);
   const [error, setError] = useState("");
@@ -30,7 +30,7 @@ export default function App() {
     getMeta()
       .then((m) => {
         setMeta(m);
-        setForm((f) => ({ ...f, building: m.buildings[0] }));
+        setForm((f) => ({ ...f, building: m.buildings[0], destination: m.buildings[0] }));
         setRestaurantId(m.restaurants[0]?.id);
       })
       .catch(() => setError("Can't reach the backend. Is it running on :8080?"));
@@ -88,18 +88,26 @@ export default function App() {
       <div className="mx-auto max-w-2xl space-y-6 p-6">
         <header>
           <h1 className="text-3xl font-bold text-emerald-700">🐊 GatorBite</h1>
-          <p className="text-gray-600">What can I actually eat before class{meta.destination && ` at ${meta.destination}`}?</p>
+          <p className="text-gray-600">What can I actually eat before my next class?</p>
         </header>
 
         {error && <div className="rounded-lg bg-red-100 p-3 text-red-800">{error}</div>}
 
         <form onSubmit={search} className="space-y-3 rounded-xl bg-white p-4 shadow">
-          <label className="block">
-            <span className="text-sm font-medium">I'm at</span>
-            <select className={input} value={form.building} onChange={set("building")}>
-              {meta.buildings.map((b) => <option key={b}>{b}</option>)}
-            </select>
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-sm font-medium">I'm at</span>
+              <select className={input} value={form.building} onChange={set("building")}>
+                {meta.buildings.map((b) => <option key={b}>{b}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">My next class is at</span>
+              <select className={input} value={form.destination} onChange={set("destination")}>
+                {meta.buildings.map((b) => <option key={b}>{b}</option>)}
+              </select>
+            </label>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <label className="block">
               <span className="text-sm font-medium">Diet</span>
