@@ -1,3 +1,4 @@
+// Diet flags: pork/beef/alcohol are only written when true (missing = false). Taco Plate's meat is unknown, so it is flagged for both.
 // In-memory seed data. Walk times are real (from Hill). prepTime is a flat 5 min for all; menu items are STILL PLACEHOLDERS.
 export const buildings = ["Thornton Hall", "SFSU Library", "Mashouff Wellness Center"];
 
@@ -11,18 +12,18 @@ export const restaurants = [
 export const menuItems = {
   "cafe-rosso": [
     // Real Cafe Rosso menu (meals only, full-size prices). vegan=true only where the menu says vegan.
-    { name: "Ham or Turkey Croissant", price: 5.95, vegetarian: false, vegan: false },
+    { name: "Ham or Turkey Croissant", price: 5.95, vegetarian: false, vegan: false, pork: true },
     { name: "Mediterranean Breakfast Sandwich", price: 8.25, vegetarian: true, vegan: false },
-    { name: "Bacon, Egg & Cheese Sandwich", price: 9.5, vegetarian: false, vegan: false },
+    { name: "Bacon, Egg & Cheese Sandwich", price: 9.5, vegetarian: false, vegan: false, pork: true },
     { name: "Falafel Hummus Sandwich", price: 10.95, vegetarian: true, vegan: false },
     { name: "Vegan Portobello Sandwich", price: 10.5, vegetarian: true, vegan: true },
     { name: "Basil Mozzarella Sandwich", price: 11.25, vegetarian: true, vegan: false },
     { name: "Eggplant Parm Sandwich", price: 11.5, vegetarian: true, vegan: false },
-    { name: "Rosso Club", price: 11.75, vegetarian: false, vegan: false },
+    { name: "Rosso Club", price: 11.75, vegetarian: false, vegan: false, pork: true },
     { name: "Chicken Teriyaki Rice Bowl", price: 10.95, vegetarian: false, vegan: false },
     { name: "Veggie Chicken Teriyaki Rice Bowl", price: 10.95, vegetarian: true, vegan: false },
     { name: "Veggie Burger", price: 8.95, vegetarian: true, vegan: false },
-    { name: "Cheeseburger", price: 8.95, vegetarian: false, vegan: false },
+    { name: "Cheeseburger", price: 8.95, vegetarian: false, vegan: false, beef: true },
     { name: "Mac 'n Cheese & Garlic Bread", price: 7.95, vegetarian: true, vegan: false },
     { name: "Grilled Three Cheese", price: 9.5, vegetarian: true, vegan: false },
   ],
@@ -31,9 +32,9 @@ export const menuItems = {
     { name: "Hard Boiled Egg", price: 1.5, vegetarian: true, vegan: false },
     { name: "Fruit Salad Cup", price: 5.25, vegetarian: true, vegan: true },
     { name: "Smoked Salmon Bagel", price: 6.5, vegetarian: false, vegan: false },
-    { name: "Dr. Lindsay Bagel", price: 5.75, vegetarian: false, vegan: false },
-    { name: "M.C.B Bagel", price: 5.75, vegetarian: false, vegan: false },
-    { name: "B.L.T Bagel", price: 5.75, vegetarian: false, vegan: false },
+    { name: "Dr. Lindsay Bagel", price: 5.75, vegetarian: false, vegan: false, pork: true },
+    { name: "M.C.B Bagel", price: 5.75, vegetarian: false, vegan: false, pork: true },
+    { name: "B.L.T Bagel", price: 5.75, vegetarian: false, vegan: false, pork: true },
   ],
   taza: [
     // Real Taza menu, read from two photos (breakfast board + tacos/quesadillas board). Drinks/extras skipped.
@@ -46,6 +47,6 @@ export const menuItems = {
     { name: "Cheese Quesadilla", price: 5.5, vegetarian: true, vegan: false },
     { name: "Veggie Quesadilla", price: 6.25, vegetarian: true, vegan: false },
     { name: "Chips & Salsa Fresca", price: 2.5, vegetarian: true, vegan: true },
-    { name: "Taco Plate", price: 6.95, vegetarian: false, vegan: false },
+    { name: "Taco Plate", price: 6.95, vegetarian: false, vegan: false, pork: true, beef: true },
   ],
 };

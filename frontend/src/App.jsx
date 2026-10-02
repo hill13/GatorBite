@@ -240,8 +240,14 @@ export default function App() {
                 <select className={field} value={form.diet} onChange={set("diet")}>
                   <option value="vegetarian">Vegetarian</option>
                   <option value="vegan">Vegan</option>
+                  <option value="halal">Halal-friendly (no pork or alcohol)</option>
+                  <option value="no-pork">No pork</option>
+                  <option value="no-beef">No beef</option>
                   <option value="any">Anything</option>
                 </select>
+                {form.diet === "halal" && (
+                  <p className="mt-1 text-xs text-slate-500">Based on menu ingredients. Menus don't show halal certification, so confirm with the restaurant.</p>
+                )}
               </Field>
               <Field label="Budget ($)">
                 <input className={field} type="number" min="1" value={form.budget} onChange={set("budget")} />
@@ -411,6 +417,14 @@ export default function App() {
                           <label className="flex items-center gap-1.5 text-xs text-slate-600">
                             <input type="checkbox" checked={it.vegan} onChange={(e) => editItem(i, "vegan", e.target.checked)} /> Vegan
                           </label>
+                          <div className="col-span-full flex gap-4 border-b border-slate-200 pb-2 text-xs text-slate-500">
+                            Contains:
+                            {["pork", "beef", "alcohol"].map((k) => (
+                              <label key={k} className="flex items-center gap-1.5 capitalize">
+                                <input type="checkbox" checked={Boolean(it[k])} onChange={(e) => editItem(i, k, e.target.checked)} /> {k}
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>

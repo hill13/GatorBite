@@ -3,9 +3,13 @@ import { GoogleGenAI } from "@google/genai";
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const PROMPT = `You are reading a photo of a restaurant menu.
-Return ONLY a JSON array. Each element: {"name": string, "price": number, "vegetarian": boolean, "vegan": boolean}.
+Return ONLY a JSON array. Each element: {"name": string, "price": number, "vegetarian": boolean, "vegan": boolean, "pork": boolean, "beef": boolean, "alcohol": boolean}.
 - price is a plain number in dollars (no $ sign). Skip items with no price.
 - vegetarian/vegan: true only if clearly meatless/plant-based from the name or description.
+- pork: true if it contains or may contain pork, bacon, ham, sausage, pepperoni, prosciutto, salami, carnitas or lard.
+- beef: true if it contains or may contain beef, steak, carne asada, pastrami, a beef burger patty or meatballs.
+- alcohol: true if it contains wine, beer, liquor or a spirit.
+- If the ingredients are unknown or the meat is a choice, set pork/beef to true (safer for people avoiding them).
 - Include EVERY meal or dish that has a price (up to 60). Skip add-ons, extras, toppings, condiments and drinks. No commentary.`;
 
 // Used when no API key is set or Gemini fails, so the demo never breaks.
@@ -25,6 +29,9 @@ function clean(raw) {
       price: Number(i.price),
       vegetarian: Boolean(i.vegetarian),
       vegan: Boolean(i.vegan),
+      pork: Boolean(i.pork),
+      beef: Boolean(i.beef),
+      alcohol: Boolean(i.alcohol),
     }))
     .filter((i) => i.name && Number.isFinite(i.price) && i.price > 0);
 }

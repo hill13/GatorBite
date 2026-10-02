@@ -77,6 +77,9 @@ app.post("/api/recommendations", optionalUser, async (req, res) => {
       if (item.price > budget) continue;
       if (diet === "vegetarian" && !item.vegetarian) continue;
       if (diet === "vegan" && !item.vegan) continue;
+      if (diet === "halal" && (item.pork || item.alcohol)) continue; // "halal-friendly": menus can't prove certification
+      if (diet === "no-pork" && item.pork) continue;
+      if (diet === "no-beef" && item.beef) continue;
       results.push({ restaurant: r.name, ...item, totalMinutes: total });
     }
   }
