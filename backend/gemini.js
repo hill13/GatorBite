@@ -35,7 +35,10 @@ export async function extractMenu(imageBase64, mimeType) {
     return { items: SAMPLE_ITEMS, source: "sample" };
   }
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      vertexai: process.env.GEMINI_VERTEX === "true", // Vertex express keys (Google Cloud console)
+    });
     const response = await ai.models.generateContent({
       model: MODEL,
       contents: [
