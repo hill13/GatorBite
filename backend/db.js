@@ -21,20 +21,52 @@ const needFirestore = () => {
   if (!usingFirestore) throw new Error("Saving needs Firestore credentials on the server");
 };
 
+// Firestore's free plan has a daily read limit, and a menu read costs one read per dish. So shared data is cached
+// in the server for a few minutes, and if Firestore refuses (quota or outage) we fall back to the built-in menus.
+const SHARED_TTL = 5 * 60 * 1000;
+const USER_TTL = 30 * 1000;
+let sharedCache = { at: 0, data: null };
+const userCache = new Map(); // uid -> { at, data }
+
+const builtIn = () => restaurants.map((r) => ({ ...r, items: menuItems[r.id] || [] }));
+
 // Shared restaurants (everyone sees these): [{ id, name, walkTimes, prepTime, items }]
 async function getShared() {
-  if (!usingFirestore) return restaurants.map((r) => ({ ...r, items: menuItems[r.id] || [] }));
-  const snap = await db.collection("restaurants").get();
-  return Promise.all(
-    snap.docs.map(async (d) => {
-      const items = await d.ref.collection("menuItems").get();
-      return { id: d.id, ...d.data(), items: items.docs.map((i) => i.data()) };
-    })
-  );
+  if (!usingFirestore) return builtIn();
+  if (sharedCache.data && Date.now() - sharedCache.at < SHARED_TTL) return sharedCache.data;
+  try {
+    const snap = await db.collection("restaurants").get();
+    const data = await Promise.all(
+      snap.docs.map(async (d) => {
+        const items = await d.ref.collection("menuItems").get();
+        return { id: d.id, ...d.data(), items: items.docs.map((i) => i.data()) };
+      })
+    );
+    sharedCache = { at: Date.now(), data };
+    return data;
+  } catch (err) {
+    console.error("Firestore read failed, serving built-in menus:", err.message);
+    return sharedCache.data || builtIn(); // an old cache beats nothing
+  }
+}
+
+// The signed-in user's private data (users/{uid}/buildings, /restaurants, /walks, /items), cached briefly.
+async function getUserData(uid) {
+  const hit = userCache.get(uid);
+  if (hit && Date.now() - hit.at < USER_TTL) return hit.data;
+  const u = db.collection("users").doc(uid);
+  const [b, r, w, i] = await Promise.all(["buildings", "restaurants", "walks", "items"].map((c) => u.collection(c).get()));
+  const data = {
+    buildings: b.docs.map((d) => d.data().name),
+    restaurants: r.docs.map((d) => ({ id: d.id, name: d.data().name, prepTime: d.data().prepTime })),
+    walks: w.docs.map((d) => d.data()),
+    items: i.docs.map((d) => d.data()),
+  };
+  userCache.set(uid, { at: Date.now(), data });
+  return data;
 }
 
 // What one visitor sees: the shared places plus (if signed in) their own.
-// users/{uid}/buildings, /restaurants, /walks, /items hold the private part.
 export async function getView(uid) {
   const shared = (await getShared()).map((r) => ({ ...r, walkTimes: { ...r.walkTimes }, mine: false }));
   const view = {
@@ -44,21 +76,22 @@ export async function getView(uid) {
   };
   if (!uid || !usingFirestore) return view;
 
-  const u = db.collection("users").doc(uid);
-  const [b, r, w, i] = await Promise.all(["buildings", "restaurants", "walks", "items"].map((c) => u.collection(c).get()));
-  view.buildings.push(...b.docs.map((d) => d.data().name));
-  for (const d of r.docs) {
-    view.restaurants.push({ id: "u-" + d.id, name: d.data().name, prepTime: d.data().prepTime ?? 5, walkTimes: {}, items: [], mine: true });
+  let mine;
+  try {
+    mine = await getUserData(uid);
+  } catch (err) {
+    console.error("Could not read private data, showing shared places only:", err.message);
+    return view;
+  }
+  view.buildings.push(...mine.buildings);
+  for (const r of mine.restaurants) {
+    view.restaurants.push({ id: "u-" + r.id, name: r.name, prepTime: r.prepTime ?? 5, walkTimes: {}, items: [], mine: true });
   }
   const byId = new Map(view.restaurants.map((x) => [x.id, x]));
-  for (const d of w.docs) {
-    const { building, restaurantId, minutes } = d.data();
-    if (byId.has(restaurantId)) byId.get(restaurantId).walkTimes[building] = minutes;
+  for (const w of mine.walks) {
+    if (byId.has(w.restaurantId)) byId.get(w.restaurantId).walkTimes[w.building] = w.minutes;
   }
-  for (const d of i.docs) {
-    const { restaurantId, ...item } = d.data();
-    byId.get(restaurantId)?.items.push(item);
-  }
+  for (const { restaurantId, ...item } of mine.items) byId.get(restaurantId)?.items.push(item);
   return view;
 }
 
@@ -75,6 +108,7 @@ export async function addUserRestaurant(uid, { name, walks }) {
     batch.set(u.collection("walks").doc(walkId(w.building, "u-" + id)), { building: w.building, restaurantId: "u-" + id, minutes: w.minutes });
   }
   await batch.commit();
+  userCache.delete(uid);
   return { id: "u-" + id, name };
 }
 
@@ -88,6 +122,7 @@ export async function addUserBuilding(uid, { name, walks }) {
     batch.set(u.collection("walks").doc(walkId(name, w.restaurantId)), { building: name, restaurantId: w.restaurantId, minutes: w.minutes });
   }
   await batch.commit();
+  userCache.delete(uid);
   return { name };
 }
 
@@ -100,6 +135,7 @@ export async function saveUserItems(uid, restaurantId, items) {
     batch.set(col.doc(), { ...i, restaurantId, source: "gemini-scan", confirmedAt: FieldValue.serverTimestamp() });
   }
   await batch.commit();
+  userCache.delete(uid);
 }
 
 // One schedule per user: users/{uid}/schedule/current = { classes: [...] }. Saving replaces the old one.
