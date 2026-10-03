@@ -54,16 +54,29 @@ async function getShared() {
 async function getUserData(uid) {
   const hit = userCache.get(uid);
   if (hit && Date.now() - hit.at < USER_TTL) return hit.data;
-  const u = db.collection("users").doc(uid);
-  const [b, r, w, i] = await Promise.all(["buildings", "restaurants", "walks", "items"].map((c) => u.collection(c).get()));
-  const data = {
-    buildings: b.docs.map((d) => d.data().name),
-    restaurants: r.docs.map((d) => ({ id: d.id, name: d.data().name, prepTime: d.data().prepTime })),
-    walks: w.docs.map((d) => d.data()),
-    items: i.docs.map((d) => d.data()),
-  };
-  userCache.set(uid, { at: Date.now(), data });
-  return data;
+  try {
+    const u = db.collection("users").doc(uid);
+    const [b, r, w, i] = await Promise.all(["buildings", "restaurants", "walks", "items"].map((c) => u.collection(c).get()));
+    const data = {
+      buildings: b.docs.map((d) => d.data().name),
+      restaurants: r.docs.map((d) => ({ id: d.id, name: d.data().name, prepTime: d.data().prepTime })),
+      walks: w.docs.map((d) => d.data()),
+      items: i.docs.map((d) => d.data()),
+    };
+    userCache.set(uid, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    if (hit) return hit.data; // an old copy (which includes this session's writes) beats nothing
+    throw err;
+  }
+}
+
+// After a successful write, add it to the cached copy too, so it shows up even if Firestore reads are refused.
+// With no cached copy yet, start an already-expired one: the next read tries Firestore again.
+function remember(uid, change) {
+  const hit = userCache.get(uid) || { at: 0, data: { buildings: [], restaurants: [], walks: [], items: [] } };
+  change(hit.data);
+  userCache.set(uid, hit);
 }
 
 // What one visitor sees: the shared places plus (if signed in) their own.
@@ -108,7 +121,10 @@ export async function addUserRestaurant(uid, { name, walks }) {
     batch.set(u.collection("walks").doc(walkId(w.building, "u-" + id)), { building: w.building, restaurantId: "u-" + id, minutes: w.minutes });
   }
   await batch.commit();
-  userCache.delete(uid);
+  remember(uid, (d) => {
+    d.restaurants.push({ id, name, prepTime: 5 });
+    d.walks.push(...walks.map((w) => ({ building: w.building, restaurantId: "u-" + id, minutes: w.minutes })));
+  });
   return { id: "u-" + id, name };
 }
 
@@ -122,7 +138,10 @@ export async function addUserBuilding(uid, { name, walks }) {
     batch.set(u.collection("walks").doc(walkId(name, w.restaurantId)), { building: name, restaurantId: w.restaurantId, minutes: w.minutes });
   }
   await batch.commit();
-  userCache.delete(uid);
+  remember(uid, (d) => {
+    d.buildings.push(name);
+    d.walks.push(...walks.map((w) => ({ building: name, restaurantId: w.restaurantId, minutes: w.minutes })));
+  });
   return { name };
 }
 
@@ -135,19 +154,30 @@ export async function saveUserItems(uid, restaurantId, items) {
     batch.set(col.doc(), { ...i, restaurantId, source: "gemini-scan", confirmedAt: FieldValue.serverTimestamp() });
   }
   await batch.commit();
-  userCache.delete(uid);
+  remember(uid, (d) => d.items.push(...items.map((i) => ({ ...i, restaurantId, source: "gemini-scan" }))));
 }
 
 // One schedule per user: users/{uid}/schedule/current = { classes: [...] }. Saving replaces the old one.
+// The last saved or read schedule is kept in memory, so suggestions still work if Firestore reads are refused.
+const scheduleCache = new Map();
+
 export async function getSchedule(uid) {
-  if (!usingFirestore) return [];
-  const doc = await db.collection("users").doc(uid).collection("schedule").doc("current").get();
-  return doc.exists ? doc.data().classes || [] : [];
+  if (!usingFirestore) return scheduleCache.get(uid) || [];
+  try {
+    const doc = await db.collection("users").doc(uid).collection("schedule").doc("current").get();
+    const classes = doc.exists ? doc.data().classes || [] : [];
+    scheduleCache.set(uid, classes);
+    return classes;
+  } catch (err) {
+    console.error("Could not read schedule, using the last known copy:", err.message);
+    return scheduleCache.get(uid) || [];
+  }
 }
 
 export async function saveSchedule(uid, classes) {
   needFirestore();
   await db.collection("users").doc(uid).collection("schedule").doc("current").set({ classes, updatedAt: FieldValue.serverTimestamp() });
+  scheduleCache.set(uid, classes);
 }
 
 // Seed script: `npm run seed` copies data.js into Firestore (shared places only; user data is left alone).
